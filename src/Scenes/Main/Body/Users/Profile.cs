@@ -2,38 +2,31 @@ using System.Collections.Generic;
 using System.Linq;
 using Godot;
 using Resources.WolfAPI;
-using Skerga.GodotNodeUtilGenerator;
 using WolfUI.Misc;
 
 namespace WolfUI;
 
-[Tool][SceneAutoConfigure]
-public partial class Profile : Button, IRestorable<Profile>
+[Tool, SceneTree]
+public partial class Profile : Button
 {
+    public NSwagWolfApi.Profile ProfileData { get; set; }
+    
     [Signal]
     private delegate void EnteredViewEventHandler();
     private bool _wasInView = false;
     //public Profile profile;
     
-    public static Profile Restore()
+    [OnInstantiate(ctor: "public")]
+    private void Initialise(NSwagWolfApi.Profile profile)
     {
-        return Create();
+        Name = profile.Name;
+        ProfileData = profile;
     }
-
-    public static Profile Create(string name)
-    {
-        var obj = Create();
-        obj.Name = name;
-        return obj;
-    }
-#nullable disable
-    private Profile() { }
-#nullable enable
-
+    
     public override void _Ready()
     {
         NameLabel.Text = Name;
-        NameLabel.Text = ProfileName;
+        NameLabel.Text = ProfileData.Name;
         
         if (Engine.IsEditorHint())
         {
@@ -47,19 +40,19 @@ public partial class Profile : Button, IRestorable<Profile>
 
     private async void OnEnteredView()
     {
-        if (IconPngPath is not null && IconPngPath != "")
-            Icon = await WolfApi.GetIcon(IconPngPath);
+        if (ProfileData.Icon_png_path is not null && ProfileData.Icon_png_path != "")
+            Icon = await WolfApi.GetIcon(ProfileData.Icon_png_path);
     }
     
     private async void OnPressed()
     {
-        if (Pin is not null)
+        if (ProfileData.Pin is not null)
         {
             var focus = GetViewport().GuiGetFocusOwner();
             var pin = await PinInput.RequestPin();
-            if (!pin.SequenceEqual(Pin))
+            if (!pin.SequenceEqual(ProfileData.Pin))
             {
-                await QuestionDialogue.OpenDialogue<bool>(
+                await QuestionDialogue.OpenDialogue(
                     "Incorrect Pin",
                     "The entered Pin is incorrect",
                     new Dictionary<string, bool>
@@ -71,9 +64,9 @@ public partial class Profile : Button, IRestorable<Profile>
             }
         }
 
-        WolfApi.ActiveProfile = this;
+        Main.ActiveProfile = this;
 
-        if(Main.Singleton.AppList is AppList appMenu)
+        if(Main.Singleton.AppList is { } appMenu)
             appMenu.Visible = true;
     }
     

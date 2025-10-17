@@ -9,7 +9,7 @@ public static class ImageExtensions
 {
     private static readonly ILogger<Image> Logger = WolfUI.Main.GetLogger<Image>();
 
-    public static async Task<Error> LoadImageFromHttpResonseMessage(this Image image, HttpResponseMessage message)
+    public static async Task<Error> LoadImageFromHttpResponseMessage(this Image image, HttpResponseMessage message)
     {
         if (message.Content.Headers.ContentType?.MediaType is null)
         {

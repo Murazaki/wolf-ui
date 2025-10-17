@@ -4,11 +4,10 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Skerga.GodotNodeUtilGenerator;
 
 namespace WolfUI;
 
-[Tool, SceneAutoConfigure(GenerateNewMethod = false)]
+[Tool, SceneTree]
 public partial class QuestionDialogue : CenterContainer
 {
     private static readonly PackedScene SelfRef = ResourceLoader.Load<PackedScene>("uid://bnq13qdhpc2km");
@@ -27,6 +26,7 @@ public partial class QuestionDialogue : CenterContainer
             throw new ArgumentException("Dialogue requires at least one Choice");
 
         //Save current Focus, so focus can be restored after
+        
         var focusOwner = Main.Singleton.GetViewport().GuiGetFocusOwner();
 
         var dialogue = SelfRef.Instantiate<QuestionDialogue>();

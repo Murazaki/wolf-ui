@@ -1,11 +1,10 @@
 using Godot;
-using Skerga.GodotNodeUtilGenerator;
 using System.Linq;
 
 namespace WolfUI;
 
 //WIP
-[SceneAutoConfigure]
+[SceneTree]
 public partial class Settings : Control
 {
     [Export]

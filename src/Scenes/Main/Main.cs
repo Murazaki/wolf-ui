@@ -1,18 +1,32 @@
 using Godot;
+using Godot.DependencyInjection;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Options;
+using NSwagWolfApi;
 using Resources.WolfAPI;
-using Skerga.GodotNodeUtilGenerator;
+using WolfUI.Tasks;
 
 namespace WolfUI;
 
-[GlobalClass, SceneAutoConfigure(GenerateNewMethod = false)]
+[GlobalClass, SceneTree]
 public partial class Main : Control
 {
+	private readonly IConfiguration _config;
+	private readonly NSwagWolfApi.NSwagWolfApi _api;
+	private readonly WolfApiEventsTask _apiEvents;
+	
+	public static Profile ActiveProfile { get; set; } = null!;
+	
 	[Export]
 	public ControllerMap? controllerMap;
 	public static Main Singleton { get; private set; }
 
-	public Main() 
+	[Inject]
+	public Main(IConfiguration config, NSwagWolfApi.NSwagWolfApi api, WolfApiEventsTask apiEvents)
 	{
+		_config = config;
+		_api = api;
+		_apiEvents = apiEvents;
 		Singleton ??= this;
 	}
 
@@ -44,11 +58,11 @@ public partial class Main : Control
 
 		AddChild(time);
 
-		WolfApi.Init();
+		//WolfApi.Init();
 
 		SelfUpdateAsync();
 
-		Logger.LogInformation("This session's id: {0}", WolfApi.SessionId);
+		Logger.LogInformation("This session's id: {0}", _config.GetSection("SESSION_ID").Value ?? "UNKNOWN");
 	} 
 	
 	/*

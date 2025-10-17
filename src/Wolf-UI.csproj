@@ -1,26 +1,51 @@
 <Project Sdk="Godot.NET.Sdk/4.4.1">
-  <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
-    <EnableDynamicLoading>true</EnableDynamicLoading>
-    <RootNamespace>WolfUI</RootNamespace>
-    <Nullable>enable</Nullable>
-  </PropertyGroup>
-  <ItemGroup>
+    <PropertyGroup>
+        <TargetFramework>net8.0</TargetFramework>
+        <EnableDynamicLoading>true</EnableDynamicLoading>
+        <RootNamespace>WolfUI</RootNamespace>
+        <Nullable>enable</Nullable>
+    </PropertyGroup>
+    <ItemGroup>
+        <ProjectReference Include="..\Skerga.Godot.DependencyInjection\Skerga.Godot.DependencyInjection.csproj"
+                          OutputItemType="Analyzer" ReferenceOutputAssembly="false"/>
 
-    <PackageReference Include="System.Runtime.Caching" Version="9.0.6" />
-  </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="../Skerga.GodotNodeUtilGenerator/Skerga.GodotNodeUtilGenerator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
-  </ItemGroup>
+        <ProjectReference Include="..\OpenApiGenerator\OpenApiGenerator.csproj"
+                          PrivateAssets="all"
+                          OutputItemType="Analyzer" ReferenceOutputAssembly="false"
+                          IncludeAssets="runtime; build; native; contentfiles; analyzers"/>
 
-  <PropertyGroup>
-    <!-- Update the property to include all EmbeddedResource files -->
-    <AdditionalFileItemNames>$(AdditionalFileItemNames);EmbeddedResource</AdditionalFileItemNames>
-  </PropertyGroup>
+        <PackageReference Include="GodotSharp.SourceGenerators" Version="2.6.0"
+                          OutputItemType="Analyzer" ReferenceOutputAssembly="false"/>
 
-  <ItemGroup>
-     <!--  <AdditionalFiles Include="*/*/*.tscn" /> -->
-      <EmbeddedResource Include="**/*.tscn" Visible="false" />
-  </ItemGroup>
+        <PackageReference Include="System.Runtime.Caching" Version="8.0.1"/>
+        <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.1"/>
+        <PackageReference Include="Microsoft.Extensions.Logging" Version="8.0.1"/>
+        <PackageReference Include="Microsoft.Extensions.Http" Version="8.0.1"/>
+        <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="8.0.1"/>
+        <PackageReference Include="System.Diagnostics.DiagnosticSource" Version="8.0.1" />
+
+        <PackageReference Include="Refit" Version="8.0.0" />
+        <PackageReference Include="Refit.HttpClientFactory" Version="8.0.0" />
+
+
+
+        <PackageReference Include="NSwag.Core" Version="14.6.1" />
+        <PackageReference Include="NSwag.CodeGeneration.CSharp" Version="14.6.1" />
+        <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
+        <PackageReference Include="System.ComponentModel.Annotations" Version="5.0.0" />
+        <PackageReference Include="System.Net.Http" Version="4.3.4" />
+    </ItemGroup>
+
+    <PropertyGroup>
+        <!-- Update the property to include all EmbeddedResource files -->
+        <AdditionalFileItemNames>$(AdditionalFileItemNames);EmbeddedResource</AdditionalFileItemNames>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <!--  <AdditionalFiles Include="*/*/*.tscn" /> -->
+        <EmbeddedResource Include="**/*.tscn" Visible="false"/>
+        <EmbeddedResource Include="WolfApi.json" />
+        <EmbeddedResource Include="Docker.json" />
+    </ItemGroup>
 
 </Project>

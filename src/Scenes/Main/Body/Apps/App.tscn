@@ -15,11 +15,6 @@ size_flags_horizontal = 6
 size_flags_vertical = 6
 theme_type_variation = &"AppCard"
 script = ExtResource("1_u3jln")
-IconPngPath = ""
-StartVirtualCompositor = false
-Title = ""
-Id = ""
-RenderNode = ""
 State = 4
 _state = 4
 _isImageOnDisc = true
@@ -167,7 +162,6 @@ script = ExtResource("3_8t7no")
 
 [node name="AppMenu" type="CenterContainer" parent="HBoxContainer/AppButton"]
 unique_name_in_owner = true
-visible = false
 layout_mode = 1
 anchors_preset = 8
 anchor_left = 0.5
@@ -201,10 +195,10 @@ size_flags_vertical = 4
 [node name="MenuButtonStart" type="Button" parent="HBoxContainer/AppButton/AppMenu/PanelContainer/MarginContainer/VBoxContainer"]
 unique_name_in_owner = true
 layout_mode = 2
-focus_neighbor_top = NodePath("../MenuButtonCancle")
+focus_neighbor_top = NodePath("../MenuButtonCancel")
 focus_neighbor_bottom = NodePath("../MenuButtonCoop")
 focus_next = NodePath("../MenuButtonCoop")
-focus_previous = NodePath("../MenuButtonCancle")
+focus_previous = NodePath("../MenuButtonCancel")
 text = "Start"
 
 [node name="MenuButtonStop" type="Button" parent="HBoxContainer/AppButton/AppMenu/PanelContainer/MarginContainer/VBoxContainer"]
@@ -230,12 +224,12 @@ text = "Start Co-op"
 unique_name_in_owner = true
 layout_mode = 2
 focus_neighbor_top = NodePath("../MenuButtonCoop")
-focus_neighbor_bottom = NodePath("../MenuButtonCancle")
-focus_next = NodePath("../MenuButtonCancle")
+focus_neighbor_bottom = NodePath("../MenuButtonCancel")
+focus_next = NodePath("../MenuButtonCancel")
 focus_previous = NodePath("../MenuButtonCoop")
 text = "Check for Update"
 
-[node name="MenuButtonCancle" type="Button" parent="HBoxContainer/AppButton/AppMenu/PanelContainer/MarginContainer/VBoxContainer"]
+[node name="MenuButtonCancel" type="Button" parent="HBoxContainer/AppButton/AppMenu/PanelContainer/MarginContainer/VBoxContainer"]
 unique_name_in_owner = true
 layout_mode = 2
 focus_neighbor_top = NodePath("../MenuButtonUpdate")

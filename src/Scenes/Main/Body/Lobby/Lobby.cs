@@ -2,32 +2,41 @@ using Godot;
 using Resources.WolfAPI;
 using System.Collections.Generic;
 using System.Linq;
-using Skerga.GodotNodeUtilGenerator;
+using Godot.DependencyInjection;
+using NSwagWolfApi;
+using WolfUI.Tasks;
 
 //TODO Add User counter, Add check if Lobby is empty on Stop and if not ask again.
 namespace WolfUI;
 
-[Tool, SceneAutoConfigure]
+[Tool, SceneTree]
 public partial class Lobby : Control
 {
     [Signal]
     private delegate void LobbyEnteredViewEventHandler();
     private bool _wasInView;
-    private Resources.WolfAPI.Lobby _lobby;
-#nullable disable
-    private Lobby(){}
-#nullable enable
-    public static Lobby New(Resources.WolfAPI.Lobby lobby)
-    {
-        var obj = Create();
-        obj._lobby = lobby;
-        if (lobby.Id is null || lobby.Name is null)
-            return obj;
+    private NSwagWolfApi.Lobby _lobby = null!;
+    
+    private readonly IApiEventSubscriber _apiEventSubscriber;
+    private readonly NSwagWolfApi.NSwagWolfApi _api;
 
-        obj.Name = lobby.Id;
-        obj.AppNameLabel.Text = lobby.Name;
-        obj.CreatorNameLabel.Text = lobby.ProfileId ?? lobby.StartedByProfileId ?? "";
-        return obj;
+    [OnInstantiate(ctor: "none")]
+    private void Initialise(NSwagWolfApi.Lobby? lobby = null)
+    {
+        if (lobby?.Id is null || lobby.Name is null)
+            return;
+
+        _lobby = lobby;
+        Name = lobby.Id;
+        AppNameLabel.Text = lobby.Name;
+        CreatorNameLabel.Text = lobby.Started_by_profile_id ?? "";
+    }
+
+    [Inject]
+    public Lobby(IApiEventSubscriber apiEventSubscriber, NSwagWolfApi.NSwagWolfApi api)
+    {
+        _apiEventSubscriber = apiEventSubscriber;
+        _api = api;
     }
 
     public override void _Ready()
@@ -41,23 +50,27 @@ public partial class Lobby : Control
         CloseButton.Pressed += LobbyMainButton.GrabFocus;
         JoinButton.Pressed += JoinLobby;
         StopButton.Pressed += StopLobby;
-
-        
         
         LobbyMenu?.Hide();
+        
+        PlayerCountLabel.Text = _lobby.Connected_sessions?.Count.ToString() ?? "1";
 
-        PlayerCountLabel.Text = _lobby?.ConnectedSessions?.Count.ToString() ?? "1";
-
-        WolfApi.Singleton.LobbyJoinEvent += OnJoinLobby;
-        WolfApi.Singleton.LobbyLeaveEvent += OnLeaveLobby;
+        _apiEventSubscriber.LobbyJoinEvent += OnJoinLobby;
+        _apiEventSubscriber.LobbyLeaveEvent += OnLeaveLobby;
         
         LobbyEnteredView += async () =>
         {
-            if (_lobby?.IconPngPath is not null && _lobby.IconPngPath != "")
-                LobbyMainButton.Icon = await WolfApi.GetIcon(_lobby.IconPngPath);
+            if (_lobby.Icon_png_path is not null && _lobby.Icon_png_path != "")
+                LobbyMainButton.Icon = await WolfApi.GetIcon(_lobby.Icon_png_path);
         };
     }
 
+    public override void _ExitTree()
+    {
+        _apiEventSubscriber.LobbyJoinEvent -= OnJoinLobby;
+        _apiEventSubscriber.LobbyLeaveEvent -= OnLeaveLobby;
+    }
+    
     private void OnJoinLobby(string lobbyId)
     {
         GD.Print(lobbyId);
@@ -92,15 +105,21 @@ public partial class Lobby : Control
     {
         List<int>? pin = null;
 
-        if (_lobby.IsPinLocked)
+        if (_lobby.Pin_required)
         {
             pin = await PinInput.RequestPin();
         }
 
-        var error = await WolfApi.JoinLobby(Name, WolfApi.SessionId, pin);
-        if (error is null || error.Success) return;
-        GD.Print(error.Error);
-        await QuestionDialogue.OpenDialogue($"{error.Error}", $"Could not Join Lobby:\n{error.Error}.", new Dictionary<string, bool>()
+        //var error = await WolfApi.JoinLobby(Name, WolfApi.SessionId, pin);
+        //var error = await _wolfApi.JoinLobby(Name, pin);
+        var sucess = await _api.JoinAsync(new JoinLobbyEvent()
+        {
+            Lobby_id = _lobby.Id,
+            Pin = pin
+        });
+        if (sucess is null || sucess.Success) return;
+
+        await QuestionDialogue.OpenDialogue($"Error", $"Could not Join Lobby:.", new Dictionary<string, bool>()
         {
             {"OK", true}
         });
@@ -108,18 +127,19 @@ public partial class Lobby : Control
 
     private async void StopLobby()
     {
-        var profiles = await WolfApi.GetProfiles();
-        var owner = profiles.FindAll(profile => profile.Id == _lobby.StartedByProfileId
-                                             || profile.Id == _lobby.ProfileId)
-                            .FirstOrDefault();
+        var profiles = await _api.ProfilesAsync().Profiles();
+        
+        //var profiles = await WolfApi.GetProfiles();
+        var owner = profiles
+            .FirstOrDefault(profile => profile.Id == _lobby.Started_by_profile_id);
+        
+        var lobbies = await _api.LobbiesAsync().Lobbies();
+        var lobby = lobbies.FirstOrDefault(lobby => lobby.Id == _lobby.Id);
 
-        var lobbies = await WolfApi.GetLobbies();
-        var lobby = lobbies.Find(lobby => lobby.Id == _lobby.Id);
-
-        if (lobby is not null && owner?.Pin is not null && !lobby.IsPinLocked)
+        if (lobby is not null && owner?.Pin is not null && !lobby.Pin_required)
         {
             var focus = GetViewport().GuiGetFocusOwner();
-            _ = await QuestionDialogue.OpenDialogue(
+            await QuestionDialogue.OpenDialogue(
                 "Pin required",
                 "Please enter the Profiles access Pin",
                 new Dictionary<string, bool>
@@ -139,12 +159,17 @@ public partial class Lobby : Control
                 focus.GrabFocus();
                 return;
             }
-            await WolfApi.StopLobby(Name);
+
+            await _api.StopAsync(new StopLobbyEvent()
+            {
+                Lobby_id = _lobby.Id,
+            });
+            //await WolfApi.StopLobby(Name);
         }
-        else if (lobby is not null && lobby.IsPinLocked)
+        else if (lobby is not null && lobby.Pin_required)
         {
             var focus = GetViewport().GuiGetFocusOwner();
-            _ = await QuestionDialogue.OpenDialogue<bool>(
+            await QuestionDialogue.OpenDialogue<bool>(
                 "Pin required",
                 "Please enter the Lobby Pin",
                 new Dictionary<string, bool>
@@ -154,11 +179,18 @@ public partial class Lobby : Control
             var pin = await PinInput.RequestPin();
             if(IsInstanceValid(focus))
                 focus.GrabFocus();
-            await WolfApi.StopLobby(Name, pin);
+            await _api.StopAsync(new StopLobbyEvent()
+            {
+                Lobby_id = _lobby.Id,
+                Pin = pin
+            });
         }
         else
         {
-            await WolfApi.StopLobby(Name);
+            await _api.StopAsync(new StopLobbyEvent()
+            {
+                Lobby_id = _lobby.Id,
+            });
         }
     }
 }

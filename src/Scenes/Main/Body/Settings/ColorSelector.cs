@@ -1,9 +1,8 @@
 using Godot;
-using Skerga.GodotNodeUtilGenerator;
 
 namespace WolfUI;
 
-[SceneAutoConfigure]
+[SceneTree]
 public partial class ColorSelector : MarginContainer
 {
     [Signal]
@@ -18,16 +17,15 @@ public partial class ColorSelector : MarginContainer
 
     public static ColorSelector CreateDefault()
     {
-        return Create(Colors.Black);
+        return Instantiate(Colors.Black);
     }
 
-    public static ColorSelector Create(Color color)
+    [OnInstantiate(ctor: "none")]
+    private void Initialise(Color color)
     {
-        var obj = Create();
-        obj.Value = color;
-        return obj;
+        Value = color;
     }
-
+    
     public override void _Ready()
     {
         //button = GetNode<Button>("%Button");

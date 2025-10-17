@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Net;
 using System.Net.Http;
+using System.Net.Sockets;
 using System.Threading.Tasks;
 using Godot;
 using WolfUI;
@@ -10,15 +11,31 @@ namespace Resources.WolfAPI;
 
 public partial class WolfApi
 {
+    private static readonly System.Net.Http.HttpClient HttpClient = new(new SocketsHttpHandler
+    {
+        ConnectCallback = async (ctx, token) =>
+        {
+            var endpointPath = System.Environment.GetEnvironmentVariable("WOLF_SOCKET_PATH") ?? "/etc/wolf/cfg/wolf.sock";
+            var socket = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.IP);
+            var endpoint = new UnixDomainSocketEndPoint(endpointPath);
+            await socket.ConnectAsync(endpoint, token);
+            return new NetworkStream(socket, ownsSocket: true);
+        }
+    });
+
+    public static async Task<Texture2D?> GetIcon(NSwagWolfApi.App app, double hCacheDuration = 1.0, int retry = 0)
+    {
+        return await GetIcon(app.ToGodotNode(), hCacheDuration, retry);
+    }
     public static async Task<Texture2D?> GetIcon(App app, double hCacheDuration = 1.0, int retry = 0)
     {
-        if (app.IconPngPath is not null && app.IconPngPath != "") // image set, get image from wolf
-            return await GetIcon(app.IconPngPath, hCacheDuration, retry);
+        if (app.AppDto.Icon_png_path is not null && app.AppDto.Icon_png_path != "") // image set, get image from wolf
+            return await GetIcon(app.AppDto.Icon_png_path, hCacheDuration, retry);
 
-        if (app.Runner?.Image is null || !app.Runner.Image.Contains("ghcr.io/games-on-whales/"))
+        if (app.AppDto.Runner?.Image is null || !app.AppDto.Runner.Image.Contains("ghcr.io/games-on-whales/"))
             return null;
 
-        var name = app.Runner.Image.TrimPrefix("ghcr.io/games-on-whales/");//.TrimSuffix(":edge");
+        var name = app.AppDto.Runner.Image.TrimPrefix("ghcr.io/games-on-whales/");//.TrimSuffix(":edge");
         var idx = name.LastIndexOf(':');
         if (idx >= 0)
             name = name[..idx];
@@ -45,10 +62,8 @@ public partial class WolfApi
                 var image = Image.LoadFromFile(filepath);
                 return ImageTexture.CreateFromImage(image);
             }
-            else
-            {
-                File.Delete(filepath);
-            }
+
+            File.Delete(filepath);
         }
 
         Logger.LogInformation("Requesting icon: {0}", iconPath);
@@ -56,7 +71,7 @@ public partial class WolfApi
         HttpResponseMessage message;
         try
         {
-            message = await _httpClient.GetAsync($"http://localhost/api/v1/utils/get-icon?icon_path={iconPath}");
+            message = await HttpClient.GetAsync($"http://localhost/api/v1/utils/get-icon?icon_path={iconPath}");
         }
         catch (HttpRequestException e)
         {
@@ -70,7 +85,7 @@ public partial class WolfApi
         if (message.StatusCode == HttpStatusCode.OK)
         {
             Image image = new();
-            var error = await image.LoadImageFromHttpResonseMessage(message);
+            var error = await image.LoadImageFromHttpResponseMessage(message);
             if (error != Error.Ok)
             {
                 if (error == Error.FileUnrecognized)

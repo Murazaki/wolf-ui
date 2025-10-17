@@ -1,16 +1,23 @@
 using Godot;
 using Resources.WolfAPI;
-using Skerga.GodotNodeUtilGenerator;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Godot.DependencyInjection;
 
 namespace WolfUI;
 
-[Tool][SceneAutoConfigure]
+[Tool, SceneTree]
 public partial class UserList : Control
 {
-	// Called when the node enters the scene tree for the first time.
+	private readonly NSwagWolfApi.NSwagWolfApi _api;
+
+	[Inject]
+	public UserList(NSwagWolfApi.NSwagWolfApi api)
+	{
+		_api = api;
+	}
+
 	public override async void _Ready()
 	{
 		if (Engine.IsEditorHint())
@@ -53,12 +60,12 @@ public partial class UserList : Control
 
 		foreach (var child in UserContainer.GetChildren())
 			child.QueueFree();
-
-		var profiles = await WolfApi.GetProfiles();
+		
+		var profiles = await _api.ProfilesAsync().Profiles();
 
 		foreach (var profile in profiles)
 		{
-			UserContainer.AddChild(profile);
+			UserContainer.AddChild(Profile.Instantiate(profile));
 		}
 
 		var ch = UserContainer.GetChildren();
@@ -73,15 +80,15 @@ public partial class UserList : Control
 	{
 		List<Profile> userList =
 		[
-			Profile.Create("One"),
-			Profile.Create("Two"), 
-			Profile.Create("Three"), 
-			Profile.Create("Four"), 
-			Profile.Create("Five"), 
-			Profile.Create("Six"), 
-			Profile.Create("Seven"), 
-			Profile.Create("Eight"), 
-			Profile.Create("Nine"), 
+			Profile.Instantiate(new NSwagWolfApi.Profile(){ Name = "One" }),
+			Profile.Instantiate(new NSwagWolfApi.Profile(){ Name = "Two" }), 
+			Profile.Instantiate(new NSwagWolfApi.Profile(){ Name = "Three" }), 
+			Profile.Instantiate(new NSwagWolfApi.Profile(){ Name = "Four" }), 
+			Profile.Instantiate(new NSwagWolfApi.Profile(){ Name = "Five" }), 
+			Profile.Instantiate(new NSwagWolfApi.Profile(){ Name = "Six" }), 
+			Profile.Instantiate(new NSwagWolfApi.Profile(){ Name = "Seven" }), 
+			Profile.Instantiate(new NSwagWolfApi.Profile(){ Name = "Eight" }), 
+			Profile.Instantiate(new NSwagWolfApi.Profile(){ Name = "Nine" }), 
 		];
 		foreach(var usr in userList)
 		{

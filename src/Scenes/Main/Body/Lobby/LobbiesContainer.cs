@@ -1,13 +1,25 @@
 using Godot;
+using Godot.DependencyInjection;
+using NSwagWolfApi;
 using Resources.WolfAPI;
-using Skerga.GodotNodeUtilGenerator;
+using WolfUI.Tasks;
 
 namespace WolfUI;
 
-[Tool][SceneAutoConfigure]
+[Tool, SceneTree]
 public partial class LobbiesContainer : VBoxContainer
 {
     private static readonly ILogger<LobbiesContainer> Logger = Main.GetLogger<LobbiesContainer>();
+    private readonly IApiEventSubscriber _apiEventSubscriber;
+    private readonly NSwagWolfApi.NSwagWolfApi _api;
+
+    [Inject]
+    public LobbiesContainer(IApiEventSubscriber apiEventSubscriber, NSwagWolfApi.NSwagWolfApi api)
+    {
+        _apiEventSubscriber = apiEventSubscriber;
+        _api = api;
+    }
+
     public override async void _Ready()
     {
         if (Engine.IsEditorHint())
@@ -18,15 +30,16 @@ public partial class LobbiesContainer : VBoxContainer
 
         Hide();
 
-        WolfApi.Singleton.LobbyCreatedEvent += AddLobby;
-        WolfApi.Singleton.LobbyStoppedEvent += OnLobbyStopped;
-        Lobbies.ChildEnteredTree += (_) => SetDeferred(CanvasItem.PropertyName.Visible, true);
-        Lobbies.ChildExitingTree += (_) => CallDeferred(MethodName.OnChildExitingTree);
+        _apiEventSubscriber.LobbyCreatedEvent += AddLobby;
+        _apiEventSubscriber.LobbyStoppedEvent += OnLobbyStopped;
+        Lobbies.ChildEnteredTree += (__) => SetDeferred(CanvasItem.PropertyName.Visible, true);
+        Lobbies.ChildExitingTree += (__) => CallDeferred(MethodName.OnChildExitingTree);
 
-        var currLobbies = await WolfApi.GetLobbies();
+        //var currLobbies = await WolfApi.GetLobbies();
+        var currLobbies = await _api.LobbiesAsync().Lobbies();
         foreach (var lobby in currLobbies)
         {
-            AddLobby(this, lobby);
+            AddLobby(lobby);
         }
     }
 
@@ -34,7 +47,7 @@ public partial class LobbiesContainer : VBoxContainer
     {
         for(var i = 0; i < 10; ++i)
         {
-            var node = Lobby.Create();
+            var node = Lobby.Instantiate();
             node.Name = $"{i}";
             Lobbies.AddChild(node);
         }
@@ -50,27 +63,30 @@ public partial class LobbiesContainer : VBoxContainer
         }
     }
 
-    private void AddLobby(object? caller, Resources.WolfAPI.Lobby lobby)
+    private void AddLobby(LobbyCreatedEvent lobby)
     {
-        if (lobby.MultiUser == false)
+        AddLobby(lobby.ToLobby());
+    }
+    
+    private void AddLobby(NSwagWolfApi.Lobby lobby)
+    {
+        if (!lobby.Multi_user)
             return;
 
-        var node = Lobby.New(lobby);
+        var node = Lobby.Instantiate(lobby);
             
         Lobbies.AddChild(node);
     }
     
-    private void OnLobbyStopped(object? caller, string lobbyId)
+    private void OnLobbyStopped(string lobbyId)
     {
         Logger.LogInformation("Lobby stopped {0}", lobbyId);
 
         foreach (var node in Lobbies.GetChildren())
         {
-            if (node.Name == lobbyId)
-            {
-                Lobbies.RemoveChild(node);
-                node.QueueFree();
-            }
+            if (node.Name != lobbyId) continue;
+            Lobbies.RemoveChild(node);
+            node.QueueFree();
         }
     }
 }

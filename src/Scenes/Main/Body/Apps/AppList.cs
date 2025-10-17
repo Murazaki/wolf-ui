@@ -3,15 +3,27 @@ using Resources.WolfAPI;
 using System;
 using System.Linq;
 using System.Threading.Tasks;
-using Skerga.GodotNodeUtilGenerator;
+using Godot.DependencyInjection;
+using NSwagWolfApi;
 using WolfUI.Misc;
+using WolfUI.Tasks;
 
 namespace WolfUI;
 
-[Tool, GlobalClass, SceneAutoConfigure(GenerateNewMethod = false)]
+[Tool, GlobalClass, SceneTree]
 public partial class AppList : Control
 {
-    public event EventHandler<Resources.WolfAPI.Lobby>? LobbyCreatedEvent;
+	private readonly IApiEventSubscriber _apiEventSubscriber;
+	private readonly NSwagWolfApi.NSwagWolfApi _api;
+
+	[Inject]
+	public AppList(IApiEventSubscriber apiEventSubscriber, NSwagWolfApi.NSwagWolfApi api)
+	{
+		_apiEventSubscriber = apiEventSubscriber;
+		_api = api;
+	}
+
+	public event EventHandler<NSwagWolfApi.Lobby>? LobbyCreatedEvent;
     public event EventHandler<string>? LobbyStoppedEvent;
 
 	// Called when the node enters the scene tree for the first time.
@@ -32,14 +44,14 @@ public partial class AppList : Control
 		VisibilityChanged += RebuildAppList;
 		ThemeChanged += RebuildAppList;
 
-		WolfApi.Singleton.LobbyCreatedEvent += OnLobbyStarted;
-		WolfApi.Singleton.LobbyStoppedEvent += OnLobbyStopped;
+		_apiEventSubscriber.LobbyCreatedEvent += OnLobbyStarted;
+		_apiEventSubscriber.LobbyStoppedEvent += OnLobbyStopped;
 	}
 
 	public override void _ExitTree()
 	{
-		WolfApi.Singleton.LobbyCreatedEvent -= OnLobbyStarted;
-		WolfApi.Singleton.LobbyStoppedEvent -= OnLobbyStopped;
+		_apiEventSubscriber.LobbyCreatedEvent -= OnLobbyStarted;
+		_apiEventSubscriber.LobbyStoppedEvent -= OnLobbyStopped;
 	}
 	
 	private void OnControllerChanged(ControllerMap.ControllerType  controllerType)
@@ -69,8 +81,10 @@ public partial class AppList : Control
 		Main.Singleton.BackHint.Visible = true;
 		await LoadAppList();
 
-		var lobbies = await WolfApi.GetLobbies();
-		lobbies.ForEach(l => OnLobbyStarted(this, l));
+		
+		//var lobbies = await WolfApi.GetLobbies();
+		var lobbies = await _api.LobbiesAsync().Lobbies();
+		lobbies.ForEach(OnLobbyStarted);
 
 		if (AppGrid.GetChildren().Select(n => n as App).FirstOrDefault(n => n is not null) is { } ctrl)
 			ctrl.GrabFocus();	
@@ -78,7 +92,7 @@ public partial class AppList : Control
 			Main.Singleton.OptionsButton.GrabFocus();
 	}
 
-	private void OnLobbyStopped(object? caller, string lobbyId)
+	private void OnLobbyStopped(string lobbyId)
 	{
 		if (!Visible)
 			return;
@@ -86,15 +100,21 @@ public partial class AppList : Control
 		LobbyStoppedEvent?.Invoke(this, lobbyId);
 	}
 
-	private void OnLobbyStarted(object? sender, Resources.WolfAPI.Lobby? lobby)
+	private void OnLobbyStarted(NSwagWolfApi.Lobby lobby)
 	{
+		
+	}
+	
+	private void OnLobbyStarted(LobbyCreatedEvent? lobby)
+	{
+		if(lobby == null) return;
+		OnLobbyStarted(lobby.ToLobby());
 		if (!Visible) return;
 
-		if (lobby?.ProfileId != WolfApi.ActiveProfile.Id &&
-		    lobby?.StartedByProfileId != WolfApi.ActiveProfile.Id) return;
-		if (lobby is null)
-			return;
-		LobbyCreatedEvent?.Invoke(this, lobby);
+		if (lobby?.StartedByProfileId != Main.ActiveProfile.ProfileData.Id &&
+		    lobby?.StartedByProfileId != Main.ActiveProfile.ProfileData.Id) return;
+
+		LobbyCreatedEvent?.Invoke(this, lobby.ToLobby());
 	}
 
 	public override void _Process(double delta)
@@ -106,11 +126,9 @@ public partial class AppList : Control
 			return;
 		}
 
-		if (InputActions.IsActionJustPressed("ui_select") && Main.Singleton.UserList is Control userList)
-		{
-			userList.Visible = true;
-			SoundEffects.PlayAcceptSound();
-		}
+		if (!InputActions.IsActionJustPressed("ui_select") || Main.Singleton.UserList is not Control userList) return;
+		userList.Visible = true;
+		SoundEffects.PlayAcceptSound();
 	}
 
 	private async Task LoadAppList()
@@ -125,14 +143,12 @@ public partial class AppList : Control
 			AppGrid.RemoveChild(child);
 		}
 		
-		var enumerator = (await WolfApi.GetApps(WolfApi.ActiveProfile))
-			.Select((value, i) => (value, i));
-		
-		foreach (var vi in enumerator)
-		{
-			vi.value.Name = $"App {vi.i}";
-			AddAppEntry(vi.value);
-		}
+		// var enumerator = (await WolfApi.GetApps(WolfApi.ActiveProfile))
+		// 	.Select((value, i) => (value, i));
+
+		(await _api.GetApps(Main.ActiveProfile.ProfileData.Id!))
+			.Select((a, i) => a.ToGodotNode($"App {i}"))
+			.ForEach(AddAppEntry);
 		
 		var firstChildren = AppGrid.GetChildren()[..AppGrid.Columns].OfType<App>();
 		foreach(var child in firstChildren)

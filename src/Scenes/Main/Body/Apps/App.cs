@@ -1,18 +1,24 @@
 using System;
 using System.Collections.Generic;
 using Godot;
+using Godot.DependencyInjection;
+using NSwagWolfApi;
 using Resources.WolfAPI;
-using Skerga.GodotNodeUtilGenerator;
-using WolfUI.Misc;
+using WolfUI.Tasks;
 
 namespace WolfUI;
 
-[GlobalClass, Tool, SceneAutoConfigure]
-public partial class App : MarginContainer, IRestorable<App>
+[GlobalClass, Tool, SceneTree]
+public partial class App : MarginContainer
 {
+	private readonly NSwagWolfApi.NSwagWolfApi _api;
+	private readonly NSwagDocker.NSwagDocker _docker;
+	private readonly WolfApiEventsTask _events;
+	public NSwagWolfApi.App AppDto = null!;
+	
 	private enum AppState
 	{
-		NOTONDISK = 0,
+		NOT_ON_DISK = 0,
 		DOWNLOADING,
 		PLAYING,
 		OK,
@@ -29,58 +35,82 @@ public partial class App : MarginContainer, IRestorable<App>
 			OnStateChanged();
 		}
 	}
-	private Resources.WolfAPI.Lobby? _runningLobby;
+	private NSwagWolfApi.Lobby? _runningLobby;
 	//private Resources.WolfAPI.AppEntry _appEntry;
 	private bool _isImageOnDisc = true;
-	
-	private App() { }
-	
-	public static App Restore()
+
+	[OnInstantiate(ctor: "none")]
+	private void Initialise(NSwagWolfApi.App appDto)
 	{
-		return Create();
+		AppDto = appDto;
+	}
+
+	[Inject]
+	public App(NSwagWolfApi.NSwagWolfApi api, WolfApiEventsTask events, NSwagDocker.NSwagDocker docker)
+	{
+		_api = api;
+		_events = events;
+		_docker = docker;
 	}
 	
 	private bool _wasInView;
-	[Signal]
-	private delegate void AppEnteredViewEventHandler();
+	[Signal] private delegate void AppEnteredViewEventHandler();
+	[Signal] private delegate void AppRunningEventHandler();
+	[Signal] private delegate void AppStoppedEventHandler();
 
-	[Signal]
-	private delegate void AppRunningEventHandler();
-
-	[Signal]
-	private delegate void AppStoppedEventHandler();
-
-	private bool IsAlreadyRunning(Resources.WolfAPI.Lobby lobby)
+	private bool IsAlreadyRunning(NSwagWolfApi.Lobby lobby)
 	{
 		//check if the App.Title is the same as the lobbies Name
-		if (lobby.Name == Title)
-			return true;
-		//check if this app uses the same folder as the lobby 
-		if (Runner?.Name is null || lobby.RunnerStateFolder == $"profile-data/{WolfApi.ActiveProfile.Id}/{Runner.Name}")
-			return true;
+		if (lobby.Name == AppDto.Title) return true;
+		//check if this app uses the same folder as the lobby
+		if (lobby.AdditionalProperties.ContainsKey("Runner_state_folder"))
+		{
+			if (AppDto.Runner.Name is null || (string?)lobby.AdditionalProperties["Runner_state_folder"] ==
+			    $"profile-data/{Main.ActiveProfile.ProfileData.Id}/{AppDto.Runner.Name}")
+			{
+				return true;
+			}
+		}
+		// if (_appDTO.Runner.Name is null || lobby.RunnerStateFolder == $"profile-data/{WolfApi.ActiveProfile.ProfileData.Id}/{_appDTO.Runner.Name}")
+		// 	return true;
 
 		return false;
 	}
 
 	// Called when the node enters the scene tree for the first time.
-	public override void _Ready()
+	public override async void _Ready()
 	{
 		if (Engine.IsEditorHint())
 		{
 			return;
 		}
 
+		try
+		{
+			_isImageOnDisc = await _docker.IsImageOnDisk(AppDto.Runner.Image);
+		}
+		catch (System.Net.Http.HttpRequestException e)
+		{
+			_Ready();
+			return;
+		}
+		
+		
 		if (AppName is null)
 		{
 			return;
 		}
-		AppName.Text = Title;
+		AppName.Text = AppDto.Title;
 		//DownloadIcon.Hide();
 		//AppProgress.Hide();
-		AppButton.Pressed += OnPressed;
+		AppButton.Pressed += () =>
+		{
+			AppMenu.Visible = true;
+			MenuButtonStart.GrabFocus();
+		};
 
 		FocusEntered += AppMenu.Hide;
-		MenuButtonCancle.Pressed += AppButton.GrabFocus; //Hides menu via the FocusEntered above
+		MenuButtonCancel.Pressed += AppButton.GrabFocus; //Hides menu via the FocusEntered above
 		MenuButtonUpdate.Pressed += PullImage;
 		MenuButtonCoop.Pressed += OnCoopPressed;
 		MenuButtonStop.Pressed += OnStopPressed;
@@ -88,7 +118,7 @@ public partial class App : MarginContainer, IRestorable<App>
 
 		State = AppState.OK;
 
-		if (Main.Singleton.AppList is AppList appList)
+		if (Main.Singleton.AppList is { } appList)
 		{
 			appList.LobbyCreatedEvent += OnLobbyCreatedEvent;
 			appList.LobbyStoppedEvent += OnLobbyStoppedEvent;
@@ -101,12 +131,12 @@ public partial class App : MarginContainer, IRestorable<App>
 
 		AppStopped += () =>
 		{
-			State = _isImageOnDisc ? AppState.OK : AppState.NOTONDISK;
+			State = _isImageOnDisc ? AppState.OK : AppState.NOT_ON_DISK;
 		};
 
-		WolfApi.Singleton.ImageUpdated += OnImageUpdated;
-		WolfApi.Singleton.ImageAlreadyUptoDate += OnImageUpdated;
-		WolfApi.Singleton.ImagePullProgress += OnImagePullProgress;
+		_events.ImageUpdated += OnImageUpdated;
+		_events.ImageAlreadyUptoDate += OnImageUpdated;
+		_events.ImagePullProgress += OnImagePullProgress;
 
 		AppEnteredView += async () =>
 		{
@@ -123,12 +153,12 @@ public partial class App : MarginContainer, IRestorable<App>
 			return;
 		}
 
-		if (Main.Singleton.AppList is not AppList appList) return;
+		if (Main.Singleton.AppList is not { } appList) return;
 		appList.LobbyCreatedEvent -= OnLobbyCreatedEvent;
 		appList.LobbyStoppedEvent -= OnLobbyStoppedEvent;
 	}
 
-	private void OnLobbyCreatedEvent(object? caller, Resources.WolfAPI.Lobby lobby)
+	private void OnLobbyCreatedEvent(object? caller, NSwagWolfApi.Lobby lobby)
 	{
 		if (!IsInstanceValid(this) || !IsAlreadyRunning(lobby)) return;
 		_runningLobby = lobby;
@@ -144,13 +174,13 @@ public partial class App : MarginContainer, IRestorable<App>
 
 	private void OnImageUpdated(string image)
 	{
-		if (!IsInstanceValid(this) || Runner?.Image != image) return;
+		if (!IsInstanceValid(this) || AppDto.Runner.Image != image) return;
 		State = _runningLobby is null ? AppState.OK : AppState.PLAYING;
 	}
 
 	private void OnImagePullProgress(string image, double progress)
 	{
-		if (Runner?.Image is null || image != Runner.Image) return;
+		if (AppDto.Runner.Image is null || image != AppDto.Runner.Image) return;
 		if (!IsInstanceValid(ProgressBar) || !IsInstanceValid(AppButton) || !IsInstanceValid(DisabledIndicator)) return;
 
 		State = AppState.DOWNLOADING;
@@ -165,7 +195,7 @@ public partial class App : MarginContainer, IRestorable<App>
 		ProgressBar.Value = progress;
 	}
 
-	public override async void _Process(double delta)
+	public override void _Process(double delta)
 	{
 		base._Process(delta);
 
@@ -175,7 +205,7 @@ public partial class App : MarginContainer, IRestorable<App>
 		}
 
 		if (!_wasInView 
-		    && Main.Singleton.AppList is AppList appList 
+		    && Main.Singleton.AppList is { } appList 
 		    && GetGlobalRect().Intersection(appList.GetGlobalRect()).HasArea())
 		{
 			EmitSignalAppEnteredView();
@@ -184,7 +214,7 @@ public partial class App : MarginContainer, IRestorable<App>
 
 
 		if (AppMenu.Visible && !(
-				MenuButtonCancle.HasFocus() ||
+				MenuButtonCancel.HasFocus() ||
 				MenuButtonUpdate.HasFocus() ||
 				MenuButtonCoop.HasFocus() ||
 				MenuButtonStop.HasFocus() ||
@@ -198,10 +228,11 @@ public partial class App : MarginContainer, IRestorable<App>
 		{
 			AppButton.GrabFocus();
 		}
-
-		if (Runner?.Image is null || State == AppState.DOWNLOADING) return;
-		_isImageOnDisc = await WolfApi.IsImageOnDisk(Runner.Image);
-		State = _isImageOnDisc ? _runningLobby is null ? AppState.OK : AppState.PLAYING : AppState.NOTONDISK;
+		
+		if (AppDto.Runner.Image is null || State == AppState.DOWNLOADING) return;
+		if(_events.ExistingDockerImages.TryGetValue(AppDto.Runner.Image, out var image))
+			_isImageOnDisc = image;
+		State = _isImageOnDisc ? _runningLobby is null ? AppState.OK : AppState.PLAYING : AppState.NOT_ON_DISK;
 	}
 
 	private void OnStateChanged()
@@ -220,6 +251,7 @@ public partial class App : MarginContainer, IRestorable<App>
 				ProgressBar.Value = 0;
 
 				MenuButtonStart.Text = "Start";
+				MenuButtonStart.Disabled = false;
 				MenuButtonStop.Visible = false;
 				MenuButtonCoop.Disabled = false;
 				MenuButtonUpdate.Disabled = false;
@@ -236,8 +268,8 @@ public partial class App : MarginContainer, IRestorable<App>
 				PlayingHint.Visible = true;
 				OkHint.Visible = false;
 				ProgressBar.Value = 0;
-
-				if (_runningLobby is not null && !_runningLobby.MultiUser)
+				
+				if (_runningLobby is not null && !_runningLobby.Multi_user)
 				{
 					MenuButtonStart.Text = "Connect";
 					MenuButtonStop.Visible = true;
@@ -258,7 +290,7 @@ public partial class App : MarginContainer, IRestorable<App>
 				MenuButtonCoop.FocusNeighborTop = MenuButtonStop.GetPath();
 				break;
 			
-			case AppState.NOTONDISK:
+			case AppState.NOT_ON_DISK:
 				DownloadHint.Visible = true;
 				PlayingHint.Visible = false;
 				OkHint.Visible = false;
@@ -294,34 +326,12 @@ public partial class App : MarginContainer, IRestorable<App>
 		AppMenu.Visible = true;
 		MenuButtonStart.GrabFocus();
 	}
-
-	private string? GetIconPath()
-	{
-		string icon;
-		if (IconPngPath is null)
-		{
-			if (Runner?.Image is null || !Runner.Image.Contains("ghcr.io/games-on-whales/"))
-				return null;
-
-			var name = Runner.Image.TrimPrefix("ghcr.io/games-on-whales/");
-			var idx = name.LastIndexOf(':');
-			if (idx >= 0)
-				name = name[..idx];
-
-			icon = $"https://games-on-whales.github.io/wildlife/apps/{name}/assets/icon.png";
-		}
-		else
-		{
-			icon = IconPngPath;
-		}
-		return icon;
-	}
-
+	
 	private async void OnStartPressed()
 	{
 		//TODO: check if user already has a open singleplayer lobby for the chosen ap or folder and if yes re-join.
 
-		if (Runner?.Name is null) return;
+		if (AppDto.Runner.Name is null) return;
 
 		MenuButtonStart.Disabled = true;
 
@@ -337,44 +347,29 @@ public partial class App : MarginContainer, IRestorable<App>
 		var lobbyId = lobby?.Id;
 		if (lobby == null)
 		{
-			var session = await WolfApi.GetSession();
-			if (session?.ClientSettings is null)
+			var session = await _api.GetSession();
+			if (session?.Client_settings is null)
 				return;
 
-			lobby = new Resources.WolfAPI.Lobby
+			var createLobbyRequest = CreateLobbyRequest.FromApp(AppDto, session);
+			
+			var response = await _api.CreateAsync(createLobbyRequest);
+			if (response is { Success: true })
 			{
-				ProfileId = WolfApi.ActiveProfile.Id,
-				Name = Title,
-				MultiUser = false,
-				IconPngPath = GetIconPath(),
-				StopWhenEveryoneLeaves = false,
-				RunnerStateFolder = $"profile-data/{WolfApi.ActiveProfile.Id}/{Runner.Name}",
-				Runner = Runner,
-				VideoSettings = new VideoSettings
-				{
-					Width = session.VideoWidth,
-					Height = session.VideoHeight,
-					RefreshRate = session.VideoRefreshRate,
-					RunnerRenderNode = RenderNode,
-					WaylandRenderNode = RenderNode,
-					VideoProducerBufferCaps = System.Environment.GetEnvironmentVariable("WOLF_VIDEO_BUFFER_CAPS") ?? ""
-				},
-				AudioSettings = new AudioSettings
-				{
-					ChannelCount = session.AudioChannelCount
-				},
-				ClientSettings = session.ClientSettings
-			};
-			lobbyId = await WolfApi.CreateLobby(lobby);
+				lobbyId = response.Lobby_id;
+			}
 		}
 
 		State = AppState.PLAYING;
-
-
+		
 		if (lobbyId is not null)
 		{
-			var response = await WolfApi.JoinLobby(lobbyId, WolfApi.SessionId);
-			if (response?.Success == false)
+			var response = await _api.JoinAsync(new JoinLobbyEvent()
+			{
+				Lobby_id = lobbyId,
+				Moonlight_session_id = 0
+			});
+			if (!response.Success)
 			{
 				await QuestionDialogue.OpenDialogue("Lobby full", "The Lobby you tried joining is Full.", new Dictionary<string, bool>()
 				{
@@ -382,8 +377,7 @@ public partial class App : MarginContainer, IRestorable<App>
 				});
 			}
 		}
-
-
+		
 		MenuButtonStart.Disabled = false;
 
 		AppButton.GrabFocus();
@@ -393,13 +387,16 @@ public partial class App : MarginContainer, IRestorable<App>
 	{
 		if (_runningLobby?.Id is null)
 			return;
-
-
+		
 		MenuButtonStop.Disabled = true;
-		await WolfApi.StopLobby(_runningLobby.Id);
+		//await WolfApi.StopLobby(_runningLobby.Id);
+		await _api.StopAsync(new StopLobbyEvent()
+		{
+			Lobby_id = _runningLobby.Id
+		});
 		MenuButtonStop.Disabled = false;
 
-		State = _isImageOnDisc ? AppState.NOTONDISK : AppState.OK;
+		State = _isImageOnDisc ? AppState.NOT_ON_DISK : AppState.OK;
 
 		AppButton.GrabFocus();
 	}
@@ -411,40 +408,17 @@ public partial class App : MarginContainer, IRestorable<App>
 
 	private async void OnCoopPressed()
 	{
-		if (Runner?.Name is null)
+		if (AppDto.Runner.Name is null)
 			return;
 
 		MenuButtonCoop.Disabled = true;
 
-		var session = await WolfApi.GetSession();
-		if (session?.ClientSettings is null)
+		var session = await _api.GetSession();
+		if (session?.Client_settings is null)
 			return;
 
-		Resources.WolfAPI.Lobby lobby = new()
-		{
-			ProfileId = WolfApi.ActiveProfile.Id,
-			Name = Title,
-			MultiUser = true,
-			IconPngPath = GetIconPath(),
-			StopWhenEveryoneLeaves = false,
-			RunnerStateFolder = $"profile-data/{WolfApi.ActiveProfile.Id}/{Runner.Name}",
-			Runner = Runner,
-			VideoSettings = new VideoSettings
-			{
-				Width = session.VideoWidth,
-				Height = session.VideoHeight,
-				RefreshRate = session.VideoRefreshRate,
-				RunnerRenderNode = RenderNode,
-				WaylandRenderNode = RenderNode,
-				VideoProducerBufferCaps = System.Environment.GetEnvironmentVariable("WOLF_VIDEO_BUFFER_CAPS") ?? ""
-			},
-			AudioSettings = new AudioSettings
-			{
-				ChannelCount = session.AudioChannelCount
-			},
-			ClientSettings = session.ClientSettings
-		};
-
+		var createLobbyRequest = CreateLobbyRequest.FromApp(AppDto, session, multiUser:true, stopWhenEveryoneLeaves:false);
+		
 		if (await QuestionDialogue.OpenDialogue("Pin", "Add Pin to Lobby?",
 			new Dictionary<string, bool> {
 				{ "Yes", true },
@@ -457,12 +431,29 @@ public partial class App : MarginContainer, IRestorable<App>
 		))
 		{
 			var pin = await PinInput.RequestPin();
-			lobby.Pin = pin;
+			createLobbyRequest.Pin = pin;
 		}
 
-		var lobbyId = await WolfApi.CreateLobby(lobby);
+		var lobbyId = string.Empty;
+		var response = await _api.CreateAsync(createLobbyRequest);
+		if (response is { Success: true })
+		{
+			lobbyId = response.Lobby_id;
+		}
+
+
 		if (lobbyId is not null)
-			await WolfApi.JoinLobby(lobbyId, WolfApi.SessionId, lobby.Pin);
+		{
+			await _api.JoinAsync(new JoinLobbyEvent()
+			{
+				Lobby_id = lobbyId,
+				Moonlight_session_id = 0,
+				Pin = createLobbyRequest.Pin
+			});
+			//await _wolfApi.JoinLobby(lobbyId, lobby.Pin!);
+
+			//await WolfApi.JoinLobby(lobbyId, WolfApi.SessionId, lobby.Pin);
+		}
 
 		MenuButtonCoop.Disabled = false;
 
@@ -475,7 +466,7 @@ public partial class App : MarginContainer, IRestorable<App>
 	{
 		State = AppState.DOWNLOADING;
 		AppButton.GrabFocus();
-		if (Runner?.Image is null) return;
-		WolfApi.PullImage(Runner.Image);
+		if (AppDto.Runner.Image is null) return;
+		_events.PullImage(AppDto.Runner.Image);
 	}
 }

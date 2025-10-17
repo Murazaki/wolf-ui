@@ -10,13 +10,13 @@ public partial class ExitButton : Button
         {
             Engine.PrintErrorMessages = false;
 
-		    var autoupdateEnable = (System.Environment.GetEnvironmentVariable("WOLF_UI_AUTOUPDATE") ?? "False") == "True";
-            if (autoupdateEnable)
-            {
-                WolfApi.StopSession(WolfApi.SessionId);
-            }
-
-            GetTree().Quit();
+		    // var autoupdateEnable = (System.Environment.GetEnvironmentVariable("WOLF_UI_AUTOUPDATE") ?? "False") == "True";
+      //       if (autoupdateEnable)
+      //       {
+      //           WolfApi.StopSession(WolfApi.SessionId);
+      //       }
+            
+            GetTree().Root.PropagateNotification((int)NotificationWMCloseRequest);
         };
     }
 }

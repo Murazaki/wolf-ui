@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using System.Linq;
-using System.Threading.Tasks;
 using Resources.WolfAPI;
 
 namespace WolfUI;
@@ -11,14 +10,14 @@ public partial class Main
     {
         var autoupdateEnable = (System.Environment.GetEnvironmentVariable("WOLF_UI_AUTOUPDATE") ?? "True") == "True";
         if (!autoupdateEnable) return;
-        var apps = await WolfApi.GetApps();
-        var wolfUi = apps?.Apps?.FindAll(app => app?.Runner?.Image is not null
-                                                 && app.Runner.Env is not null
-                                                 && app.Runner.Image.Contains("wolf-ui")
-                                                 && app.Runner.Env.Contains("WOLF_UI_AUTOUPDATE=True"))
-            .FirstOrDefault();
+        //var apps = await WolfApi.GetApps();
+        var apps = await _api.AppsAsync().GetApps();
+        var wolfUi = apps.FirstOrDefault(app => app.Runner?.Image is not null
+                                                        && app.Runner.Env is not null
+                                                        && app.Runner.Image.Contains("wolf-ui")
+                                                        && app.Runner.Env.Contains("WOLF_UI_AUTOUPDATE=True"));
 
-        WolfApi.Singleton.ImageUpdated += async (img) =>
+        _apiEvents.ImageUpdated += async (img) =>
         {
             if (wolfUi?.Runner?.Image is null || img != wolfUi.Runner.Image) return;
             if (!await QuestionDialogue.OpenDialogue("Restart", "Wolf-UI has been updated, please restart.",
@@ -29,15 +28,12 @@ public partial class Main
                     })) return;
             //await WolfApi.StartRunner(wolfUi.Runner);
             //await Task.Delay(500);
-            GetTree().Quit();
+            GetTree().Root.PropagateNotification((int)NotificationWMCloseRequest);
         };
         
-
-
         if (wolfUi?.Runner?.Image is not null)
         {
-            WolfApi.PullImage(wolfUi.Runner.Image);
+            _apiEvents.PullImage(wolfUi.Runner.Image);
         }
-
     }
 }

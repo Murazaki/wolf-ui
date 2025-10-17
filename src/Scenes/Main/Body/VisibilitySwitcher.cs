@@ -13,7 +13,7 @@ public partial class VisibilitySwitcher : Control
 
 	private void DeferredReady()
 	{
-		var children = GetChildren();
+		var children = GetChildren() ?? [];
 		foreach(var child in children)
 		{
 			if(child is Control control)

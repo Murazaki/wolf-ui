@@ -31,18 +31,18 @@ _INSTALL_DOTNET
 
 WORKDIR /project
 COPY ./src ./src
-COPY ./Skerga.GodotNodeUtilGenerator ./Skerga.GodotNodeUtilGenerator
+COPY ./Skerga.Godot.DependencyInjection ./Skerga.Godot.DependencyInjection
+COPY ./OpenApiGenerator ./OpenApiGenerator
 WORKDIR /project/src
-RUN <<_INSTALL_PACKAGES
+RUN <<_BUILD_PROJECT
 set -e
 
 mkdir ./bin
 Godot --headless --export-release "Linux" ./bin/wolf-ui
 
 test -f ./bin/wolf-ui
-test -d ./bin/data_Wolf-UI_linuxbsd_x86_64
 
-_INSTALL_PACKAGES
+_BUILD_PROJECT
 ###############################################################################################
 
 FROM ${BASE_APP_IMAGE}
