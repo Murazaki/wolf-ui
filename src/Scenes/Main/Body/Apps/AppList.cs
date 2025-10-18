@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Godot.DependencyInjection;
 using NSwagWolfApi;
+using WolfUI.Interfaces;
 using WolfUI.Misc;
 using WolfUI.Tasks;
 
@@ -13,13 +14,13 @@ namespace WolfUI;
 [Tool, GlobalClass, SceneTree]
 public partial class AppList : Control
 {
-	private readonly IApiEventSubscriber _apiEventSubscriber;
+	private readonly IApiEventPublisher _apiEvents;
 	private readonly NSwagWolfApi.NSwagWolfApi _api;
 
 	[Inject]
-	public AppList(IApiEventSubscriber apiEventSubscriber, NSwagWolfApi.NSwagWolfApi api)
+	public AppList(IApiEventPublisher apiEvents, NSwagWolfApi.NSwagWolfApi api)
 	{
-		_apiEventSubscriber = apiEventSubscriber;
+		_apiEvents = apiEvents;
 		_api = api;
 	}
 
@@ -44,14 +45,14 @@ public partial class AppList : Control
 		VisibilityChanged += RebuildAppList;
 		ThemeChanged += RebuildAppList;
 
-		_apiEventSubscriber.LobbyCreatedEvent += OnLobbyStarted;
-		_apiEventSubscriber.LobbyStoppedEvent += OnLobbyStopped;
+		_apiEvents.LobbyCreatedEvent += OnLobbyStarted;
+		_apiEvents.LobbyStoppedEvent += OnLobbyStopped;
 	}
 
 	public override void _ExitTree()
 	{
-		_apiEventSubscriber.LobbyCreatedEvent -= OnLobbyStarted;
-		_apiEventSubscriber.LobbyStoppedEvent -= OnLobbyStopped;
+		_apiEvents.LobbyCreatedEvent -= OnLobbyStarted;
+		_apiEvents.LobbyStoppedEvent -= OnLobbyStopped;
 	}
 	
 	private void OnControllerChanged(ControllerMap.ControllerType  controllerType)

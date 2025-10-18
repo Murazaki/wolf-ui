@@ -4,9 +4,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
-using System.Reflection;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
@@ -15,67 +13,35 @@ using Godot.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Resources.WolfAPI;
+using WolfUI.Interfaces;
 using WolfUI.Misc;
 using HttpClient = System.Net.Http.HttpClient;
 
 namespace WolfUI.Tasks;
 
-public interface IApiEventSubscriber
-{
-    public delegate void ApiEventEventHandler(string eventType, string data);
-    event ApiEventEventHandler ApiEvent;
-    
-    public delegate void LobbyCreatedEventEventHandler(NSwagWolfApi.LobbyCreatedEvent lobby);
-    event LobbyCreatedEventEventHandler LobbyCreatedEvent;
-    
-    public delegate void LobbyStoppedEventEventHandler(string lobbyId);
-    event LobbyStoppedEventEventHandler LobbyStoppedEvent;
-    
-    public delegate void LobbyJoinEventEventHandler(string lobbyId);
-    event LobbyJoinEventEventHandler LobbyJoinEvent;
-
-    public delegate void LobbyLeaveEventEventHandler(string lobbyId);
-    event LobbyLeaveEventEventHandler LobbyLeaveEvent;
-    
-    public delegate void ImageUpdatedEventHandler(string imageName);
-    event ImageUpdatedEventHandler ImageUpdatedEvent;
-    
-    public delegate void ImageAlreadyUptoDateEventHandler(string imageName);
-    event ImageAlreadyUptoDateEventHandler ImageAlreadyUptoDateEvent;
-
-    public delegate void ImagePullProgressEventHandler(string imageName, double progress);
-    event ImagePullProgressEventHandler ImagePullProgressEvent;
-    
-    public delegate void DockerPullingImageEventHandler(string image);
-    event DockerPullingImageEventHandler DockerPullingImageEvent;
-    
-    public delegate void DockerPulledImageEventHandler(string image, bool success);
-    event DockerPulledImageEventHandler DockerPulledImageEvent;
-}
-
-public partial class WolfApiEventsTask : GodotObject, IHostedService, IApiEventSubscriber
+public partial class WolfApiEventsTask : GodotObject, IHostedService, IApiEventPublisher
 {
     private readonly Microsoft.Extensions.Logging.ILogger<WolfApiEventsTask> _logger;
     private readonly HttpClient _client;
-    private readonly NSwagDocker.NSwagDocker _docker;
+    // private readonly NSwagDocker.NSwagDocker _docker;
     private readonly NSwagWolfApi.NSwagWolfApi _wolfApi;
     public readonly ConcurrentDictionary<string, bool> ExistingDockerImages = new();
 
-    private static readonly JsonSerializerOptions JsonOptions = new(){
+    public static readonly JsonSerializerOptions JsonOptions = new(){
         TypeInfoResolver = new OptInJsonTypeInfoResolver()
     };
     
     public WolfApiEventsTask(Microsoft.Extensions.Logging.ILogger<WolfApiEventsTask> logger, 
-        IHttpClientFactory factory, 
         IHostApplicationLifetime applicationLifetime, 
-        NSwagDocker.NSwagDocker docker, 
-        NSwagWolfApi.NSwagWolfApi wolfApi)
+        // NSwagDocker.NSwagDocker docker, 
+        NSwagWolfApi.NSwagWolfApi wolfApi, 
+        HttpClient client)
     {
         _logger = logger;
-        _docker = docker;
+        // _docker = docker;
         _wolfApi = wolfApi;
-        _client = factory.CreateClient("WolfApi");
-        
+        _client = client;
+
         if(Engine.IsEditorHint()) return;
         
         applicationLifetime.ApplicationStopping.Register(() => 
@@ -97,18 +63,6 @@ public partial class WolfApiEventsTask : GodotObject, IHostedService, IApiEventS
                 }
             };
             
-            TryAsync(_wolfApi.ProfilesAsync(cancellationToken)).Result?.Profiles
-                .SelectMany(p => p.Apps)
-                .Select(a => (a.Runner.Image, a.Runner.Image))
-                .Distinct()
-                .Select(async i => KeyValuePair.Create(
-                    i.Item1, 
-                    await TryAsync(_docker.InspectAsync(i.Item2, cancellationToken)) is not null)
-                )
-                .Select(t => t.Result)
-                .ToList()
-                .ForEach(kv => ExistingDockerImages[kv.Key] = kv.Value);
-
             var icons = TryAsync(_wolfApi.ProfilesAsync(cancellationToken)).Result?.Profiles
                 .SelectMany(p => p.Apps)
                 .Distinct()
@@ -120,7 +74,7 @@ public partial class WolfApiEventsTask : GodotObject, IHostedService, IApiEventS
             {
                 try
                 {
-                    var stream = await _client.GetStreamAsync($"events", cancellationToken);
+                    var stream = await _client.GetStreamAsync($"http://localhost/api/v1/events", cancellationToken);
                     var eventType = string.Empty;
                     using var reader = new StreamReader(stream);
                     while (!reader.EndOfStream)
@@ -247,16 +201,16 @@ public partial class WolfApiEventsTask : GodotObject, IHostedService, IApiEventS
         return Task.CompletedTask;
     }
     
-    public event IApiEventSubscriber.ApiEventEventHandler? ApiEvent;
-    public event IApiEventSubscriber.LobbyCreatedEventEventHandler? LobbyCreatedEvent;
-    public event IApiEventSubscriber.LobbyStoppedEventEventHandler? LobbyStoppedEvent;
-    public event IApiEventSubscriber.LobbyJoinEventEventHandler? LobbyJoinEvent;
-    public event IApiEventSubscriber.LobbyLeaveEventEventHandler? LobbyLeaveEvent;
-    public event IApiEventSubscriber.ImageUpdatedEventHandler? ImageUpdatedEvent;
-    public event IApiEventSubscriber.ImageAlreadyUptoDateEventHandler? ImageAlreadyUptoDateEvent;
-    public event IApiEventSubscriber.ImagePullProgressEventHandler? ImagePullProgressEvent;
-    public event IApiEventSubscriber.DockerPullingImageEventHandler? DockerPullingImageEvent;
-    public event IApiEventSubscriber.DockerPulledImageEventHandler? DockerPulledImageEvent;
+    public event IApiEventPublisher.ApiEventEventHandler? ApiEvent;
+    public event IApiEventPublisher.LobbyCreatedEventEventHandler? LobbyCreatedEvent;
+    public event IApiEventPublisher.LobbyStoppedEventEventHandler? LobbyStoppedEvent;
+    public event IApiEventPublisher.LobbyJoinEventEventHandler? LobbyJoinEvent;
+    public event IApiEventPublisher.LobbyLeaveEventEventHandler? LobbyLeaveEvent;
+    public event IApiEventPublisher.ImageUpdatedEventHandler? ImageUpdatedEvent;
+    public event IApiEventPublisher.ImageAlreadyUptoDateEventHandler? ImageAlreadyUptoDateEvent;
+    public event IApiEventPublisher.ImagePullProgressEventHandler? ImagePullProgressEvent;
+    public event IApiEventPublisher.DockerPullingImageEventHandler? DockerPullingImageEvent;
+    public event IApiEventPublisher.DockerPulledImageEventHandler? DockerPulledImageEvent;
 
     [GeneratedRegex("""{"image_name":"(.*?)","success":(.*?)}""")]
     private static partial Regex PulledImageRegex();

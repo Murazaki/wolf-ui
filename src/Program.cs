@@ -9,6 +9,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Resources.WolfAPI;
+using WolfUI.Interfaces;
 using WolfUI.Tasks;
 
 namespace Godot.DependencyInjection
@@ -30,8 +31,11 @@ namespace Godot.DependencyInjection
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            _wolfApiEventsTask.DockerPulledImageEvent += (image, success) => _logger.LogInformation($"Docker pulled image: {image} - {success}");
-            _wolfApiEventsTask.DockerPullingImageEvent += image => _logger.LogInformation($"Docker pulling image: {image}");
+            _wolfApiEventsTask.DockerPulledImageEvent += (image, success) => 
+                _logger.LogInformation("Docker pulled image: {image} - {success}", image, success);
+            
+            _wolfApiEventsTask.DockerPullingImageEvent += image => 
+                _logger.LogInformation("Docker pulling image: {image}", image);
             
             try
             {
@@ -55,64 +59,32 @@ namespace Godot.DependencyInjection
         static partial void ConfigureServices(HostBuilderContext context, IServiceCollection services)
         {
             services.AddLogging(configure => configure.AddConsole());
-            
-            services.AddHttpClient("WolfApi").ConfigurePrimaryHttpMessageHandler(() =>
+            services.AddScoped<System.Net.Http.HttpClient>(p =>
+            {
+                return new System.Net.Http.HttpClient(new SocketsHttpHandler
                 {
-                    return new SocketsHttpHandler
+                    ConnectCallback = async (ctx, token) =>
                     {
-                        ConnectCallback = async (ctx, token) =>
-                        {
-                            var endpointPath = System.Environment.GetEnvironmentVariable("WOLF_SOCKET_PATH") ??
-                                               "/etc/wolf/cfg/wolf.sock";
-                            var socket = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.IP);
-                            var endpoint = new UnixDomainSocketEndPoint(endpointPath);
-                            await socket.ConnectAsync(endpoint, token);
-                            return new NetworkStream(socket, ownsSocket: true);
-                        },
-                        PooledConnectionLifetime = Timeout.InfiniteTimeSpan
-                    };
-                })
-                .ConfigureHttpClient(client =>
-                {
-                    client.BaseAddress = new Uri("http://localhost/api/v1/");
-                    client.DefaultRequestVersion = new Version(1, 0);
-                })
-                .SetHandlerLifetime(Timeout.InfiniteTimeSpan);
-            
+                        var endpointPath = System.Environment.GetEnvironmentVariable("WOLF_SOCKET_PATH") ??
+                                           "/etc/wolf/cfg/wolf.sock";
+                        var socket = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.IP);
+                        var endpoint = new UnixDomainSocketEndPoint(endpointPath);
+                        await socket.ConnectAsync(endpoint, token);
+                        return new NetworkStream(socket, ownsSocket: true);
+                    }
+                });
+            });
             
             services.AddSingleton<WolfApiEventsTask>()
-                  .AddSingleton<IApiEventSubscriber>(p => p.GetRequiredService<WolfApiEventsTask>())
+                  .AddSingleton<IApiEventPublisher>(p => p.GetRequiredService<WolfApiEventsTask>())
                   .AddHostedService(p => p.GetRequiredService<WolfApiEventsTask>());
             
+            services.AddSingleton<NSwagDocker.NSwagDocker>()
+                .AddSingleton<IDockerApiClient>(p => p.GetRequiredService<NSwagDocker.NSwagDocker>())
+                .AddSingleton<IDockerEventPublisher>(p => p.GetRequiredService<NSwagDocker.NSwagDocker>());
             
-            var api = new NSwagWolfApi.NSwagWolfApi(new System.Net.Http.HttpClient(new SocketsHttpHandler
-            {
-                ConnectCallback = async (ctx, token) =>
-                {
-                    var endpointPath = System.Environment.GetEnvironmentVariable("WOLF_SOCKET_PATH") ?? "/etc/wolf/cfg/wolf.sock";
-                    var socket = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.IP);
-                    var endpoint = new UnixDomainSocketEndPoint(endpointPath);
-                    await socket.ConnectAsync(endpoint, token);
-                    return new NetworkStream(socket, ownsSocket: true);
-                }
-            }));
-            services.AddSingleton(api);
-
-            var docker = new NSwagDocker.NSwagDocker(new System.Net.Http.HttpClient(new SocketsHttpHandler
-            {
-                ConnectCallback = async (ctx, token) =>
-                {
-                    var endpointPath = System.Environment.GetEnvironmentVariable("WOLF_SOCKET_PATH") ??
-                                       "/etc/wolf/cfg/wolf.sock";
-                    var socket = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.IP);
-                    var endpoint = new UnixDomainSocketEndPoint(endpointPath);
-                    await socket.ConnectAsync(endpoint, token);
-                    return new NetworkStream(socket, ownsSocket: true);
-                }
-            }));
-            services.AddSingleton(docker);
-            
-            services.AddHostedService<Test>();
+            services.AddSingleton<NSwagWolfApi.NSwagWolfApi>()
+                .AddHostedService<Test>();
         }
     }
 }

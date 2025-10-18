@@ -4,6 +4,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 using NSwagWolfApi;
 using Resources.WolfAPI;
+using WolfUI.Interfaces;
 using WolfUI.Tasks;
 
 namespace WolfUI;
@@ -14,6 +15,8 @@ public partial class Main : Control
 	private readonly IConfiguration _config;
 	private readonly NSwagWolfApi.NSwagWolfApi _api;
 	private readonly WolfApiEventsTask _apiEvents;
+	private readonly IDockerEventPublisher _dockerEvents;
+	private readonly IDockerApiClient _dockerApiClient;
 	
 	public static Profile ActiveProfile { get; set; } = null!;
 	
@@ -22,11 +25,13 @@ public partial class Main : Control
 	public static Main Singleton { get; private set; }
 
 	[Inject]
-	public Main(IConfiguration config, NSwagWolfApi.NSwagWolfApi api, WolfApiEventsTask apiEvents)
+	public Main(IConfiguration config, NSwagWolfApi.NSwagWolfApi api, WolfApiEventsTask apiEvents, IDockerEventPublisher dockerEvents, IDockerApiClient dockerApiClient)
 	{
 		_config = config;
 		_api = api;
 		_apiEvents = apiEvents;
+		_dockerEvents = dockerEvents;
+		_dockerApiClient = dockerApiClient;
 		Singleton ??= this;
 	}
 

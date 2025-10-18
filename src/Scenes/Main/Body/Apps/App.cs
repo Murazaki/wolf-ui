@@ -4,6 +4,7 @@ using Godot;
 using Godot.DependencyInjection;
 using NSwagWolfApi;
 using Resources.WolfAPI;
+using WolfUI.Interfaces;
 using WolfUI.Tasks;
 
 namespace WolfUI;
@@ -14,6 +15,9 @@ public partial class App : MarginContainer
 	private readonly NSwagWolfApi.NSwagWolfApi _api;
 	private readonly NSwagDocker.NSwagDocker _docker;
 	private readonly WolfApiEventsTask _events;
+	private readonly IDockerEventPublisher _dockerEvents;
+	private readonly IDockerApiClient _dockerApi;
+	
 	public NSwagWolfApi.App AppDto = null!;
 	
 	private enum AppState
@@ -46,11 +50,13 @@ public partial class App : MarginContainer
 	}
 
 	[Inject]
-	public App(NSwagWolfApi.NSwagWolfApi api, WolfApiEventsTask events, NSwagDocker.NSwagDocker docker)
+	public App(NSwagWolfApi.NSwagWolfApi api, WolfApiEventsTask events, NSwagDocker.NSwagDocker docker, IDockerEventPublisher dockerEvents, IDockerApiClient dockerApi)
 	{
 		_api = api;
 		_events = events;
 		_docker = docker;
+		_dockerEvents = dockerEvents;
+		_dockerApi = dockerApi;
 	}
 	
 	private bool _wasInView;
@@ -134,9 +140,9 @@ public partial class App : MarginContainer
 			State = _isImageOnDisc ? AppState.OK : AppState.NOT_ON_DISK;
 		};
 
-		_events.ImageUpdated += OnImageUpdated;
-		_events.ImageAlreadyUptoDate += OnImageUpdated;
-		_events.ImagePullProgress += OnImagePullProgress;
+		_dockerEvents.OnImageUpdated += OnImageUpdated;
+		_dockerEvents.OnImageAlreadyUptoDate += OnImageUpdated;
+		_dockerEvents.OnImagePullProgress += OnImagePullProgress;
 
 		AppEnteredView += async () =>
 		{
@@ -467,6 +473,6 @@ public partial class App : MarginContainer
 		State = AppState.DOWNLOADING;
 		AppButton.GrabFocus();
 		if (AppDto.Runner.Image is null) return;
-		_events.PullImage(AppDto.Runner.Image);
+		_dockerApi.PullImage(AppDto.Runner.Image);
 	}
 }

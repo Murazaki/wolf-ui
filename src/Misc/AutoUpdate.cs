@@ -10,14 +10,14 @@ public partial class Main
     {
         var autoupdateEnable = (System.Environment.GetEnvironmentVariable("WOLF_UI_AUTOUPDATE") ?? "True") == "True";
         if (!autoupdateEnable) return;
-        //var apps = await WolfApi.GetApps();
+
         var apps = await _api.AppsAsync().GetApps();
         var wolfUi = apps.FirstOrDefault(app => app.Runner?.Image is not null
                                                         && app.Runner.Env is not null
                                                         && app.Runner.Image.Contains("wolf-ui")
                                                         && app.Runner.Env.Contains("WOLF_UI_AUTOUPDATE=True"));
 
-        _apiEvents.ImageUpdated += async (img) =>
+        _dockerEvents.OnImageUpdated += async (img) =>
         {
             if (wolfUi?.Runner?.Image is null || img != wolfUi.Runner.Image) return;
             if (!await QuestionDialogue.OpenDialogue("Restart", "Wolf-UI has been updated, please restart.",
@@ -26,14 +26,13 @@ public partial class Main
                         { "Restart", true },
                         { "Later", false }
                     })) return;
-            //await WolfApi.StartRunner(wolfUi.Runner);
-            //await Task.Delay(500);
+
             GetTree().Root.PropagateNotification((int)NotificationWMCloseRequest);
         };
         
         if (wolfUi?.Runner?.Image is not null)
         {
-            _apiEvents.PullImage(wolfUi.Runner.Image);
+            _dockerApiClient.PullImage(wolfUi.Runner.Image);
         }
     }
 }

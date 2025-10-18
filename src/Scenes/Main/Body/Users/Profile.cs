@@ -2,7 +2,6 @@ using System.Collections.Generic;
 using System.Linq;
 using Godot;
 using Resources.WolfAPI;
-using WolfUI.Misc;
 
 namespace WolfUI;
 

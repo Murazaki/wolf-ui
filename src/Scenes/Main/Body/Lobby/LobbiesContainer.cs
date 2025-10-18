@@ -2,6 +2,7 @@ using Godot;
 using Godot.DependencyInjection;
 using NSwagWolfApi;
 using Resources.WolfAPI;
+using WolfUI.Interfaces;
 using WolfUI.Tasks;
 
 namespace WolfUI;
@@ -10,13 +11,13 @@ namespace WolfUI;
 public partial class LobbiesContainer : VBoxContainer
 {
     private static readonly ILogger<LobbiesContainer> Logger = Main.GetLogger<LobbiesContainer>();
-    private readonly IApiEventSubscriber _apiEventSubscriber;
+    private readonly IApiEventPublisher _apiEvents;
     private readonly NSwagWolfApi.NSwagWolfApi _api;
 
     [Inject]
-    public LobbiesContainer(IApiEventSubscriber apiEventSubscriber, NSwagWolfApi.NSwagWolfApi api)
+    public LobbiesContainer(IApiEventPublisher apiEvents, NSwagWolfApi.NSwagWolfApi api)
     {
-        _apiEventSubscriber = apiEventSubscriber;
+        _apiEvents = apiEvents;
         _api = api;
     }
 
@@ -30,8 +31,8 @@ public partial class LobbiesContainer : VBoxContainer
 
         Hide();
 
-        _apiEventSubscriber.LobbyCreatedEvent += AddLobby;
-        _apiEventSubscriber.LobbyStoppedEvent += OnLobbyStopped;
+        _apiEvents.LobbyCreatedEvent += AddLobby;
+        _apiEvents.LobbyStoppedEvent += OnLobbyStopped;
         Lobbies.ChildEnteredTree += (__) => SetDeferred(CanvasItem.PropertyName.Visible, true);
         Lobbies.ChildExitingTree += (__) => CallDeferred(MethodName.OnChildExitingTree);
 

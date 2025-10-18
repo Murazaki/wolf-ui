@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Godot.DependencyInjection;
 using NSwagWolfApi;
+using WolfUI.Interfaces;
 using WolfUI.Tasks;
 
 //TODO Add User counter, Add check if Lobby is empty on Stop and if not ask again.
@@ -17,7 +18,7 @@ public partial class Lobby : Control
     private bool _wasInView;
     private NSwagWolfApi.Lobby _lobby = null!;
     
-    private readonly IApiEventSubscriber _apiEventSubscriber;
+    private readonly IApiEventPublisher _apiEvents;
     private readonly NSwagWolfApi.NSwagWolfApi _api;
 
     [OnInstantiate(ctor: "none")]
@@ -33,9 +34,9 @@ public partial class Lobby : Control
     }
 
     [Inject]
-    public Lobby(IApiEventSubscriber apiEventSubscriber, NSwagWolfApi.NSwagWolfApi api)
+    public Lobby(IApiEventPublisher apiEvents, NSwagWolfApi.NSwagWolfApi api)
     {
-        _apiEventSubscriber = apiEventSubscriber;
+        _apiEvents = apiEvents;
         _api = api;
     }
 
@@ -55,8 +56,8 @@ public partial class Lobby : Control
         
         PlayerCountLabel.Text = _lobby.Connected_sessions?.Count.ToString() ?? "1";
 
-        _apiEventSubscriber.LobbyJoinEvent += OnJoinLobby;
-        _apiEventSubscriber.LobbyLeaveEvent += OnLeaveLobby;
+        _apiEvents.LobbyJoinEvent += OnJoinLobby;
+        _apiEvents.LobbyLeaveEvent += OnLeaveLobby;
         
         LobbyEnteredView += async () =>
         {
@@ -67,8 +68,8 @@ public partial class Lobby : Control
 
     public override void _ExitTree()
     {
-        _apiEventSubscriber.LobbyJoinEvent -= OnJoinLobby;
-        _apiEventSubscriber.LobbyLeaveEvent -= OnLeaveLobby;
+        _apiEvents.LobbyJoinEvent -= OnJoinLobby;
+        _apiEvents.LobbyLeaveEvent -= OnLeaveLobby;
     }
     
     private void OnJoinLobby(string lobbyId)

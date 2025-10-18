@@ -1,4 +1,9 @@
-namespace WolfUI.Tasks
+using System;
+using System.Threading;
+using WolfUI.Interfaces;
+using WolfUI.Tasks;
+
+namespace NSwagDocker
 {
     using System.Collections.Generic;
     using System.IO;
@@ -7,11 +12,35 @@ namespace WolfUI.Tasks
     using System.Text.Json;
     using System.Text.Json.Serialization;
     using System.Threading.Tasks;
-    using Godot;
     using Microsoft.Extensions.Logging;
     
-    public partial class WolfApiEventsTask
+    public partial class NSwagDocker : IDockerApiClient, IDockerEventPublisher
     {
+        private readonly ILogger<NSwagDocker> _logger;
+        private readonly HttpClient _client;
+        private readonly WolfApiEventsTask _eventsTask;
+        private readonly NSwagWolfApi.NSwagWolfApi _wolfApi;
+        
+        public NSwagDocker(ILogger<NSwagDocker> logger, HttpClient client, WolfApiEventsTask eventsTask, NSwagWolfApi.NSwagWolfApi wolfApi) : this(client)
+        {
+            _logger = logger;
+            _client = client;
+            _eventsTask = eventsTask;
+            _wolfApi = wolfApi;
+            
+            // TryAsync(_wolfApi.ProfilesAsync()).Result?.Profiles
+            //     .SelectMany(p => p.Apps)
+            //     .Select(a => (a.Runner.Image, a.Runner.Image))
+            //     .Distinct()
+            //     .Select(async i => KeyValuePair.Create(
+            //         i.Item1, 
+            //         await TryAsync(InspectAsync(i.Item2)) is not null)
+            //     )
+            //     .Select(t => t.Result)
+            //     .ToList()
+            //     .ForEach(kv => _eventsTask.ExistingDockerImages[kv.Key] = kv.Value);
+        }
+
         private sealed record PullImageResponse
         {
             [JsonInclude, JsonPropertyName("success")]
@@ -71,7 +100,7 @@ namespace WolfUI.Tasks
 
                     if (parsed.Success is not null && parsed.Success == true)
                     {
-                        ExistingDockerImages[imageName] = true;
+                        _eventsTask.ExistingDockerImages[imageName] = true;
 
                         if (hasDownloaded)
                             EmitSignalDeferredImageUpdated(imageName);
@@ -119,22 +148,28 @@ namespace WolfUI.Tasks
                 return;
 
                 void EmitSignalDeferredImagePullProgress(string argImageName, double progress) =>
-                    CallDeferred(GodotObject.MethodName.EmitSignal, SignalName.ImagePullProgress,
-                        argImageName, progress);
+                    OnImagePullProgress?.Invoke(argImageName, progress);
 
                 void EmitSignalDeferredImageAlreadyUptoDate(string argImageName) =>
-                    CallDeferred(GodotObject.MethodName.EmitSignal, SignalName.ImageAlreadyUptoDate,
-                        argImageName);
+                    OnImageAlreadyUptoDate?.Invoke(argImageName);
 
                 void EmitSignalDeferredImageUpdated(string argImageName) =>
-                    CallDeferred(GodotObject.MethodName.EmitSignal, SignalName.ImageUpdated, argImageName);
+                    OnImageUpdated?.Invoke(argImageName);
             });
         }
-        [Signal]
-        public delegate void ImageUpdatedEventHandler(string imageName);
-        [Signal]
-        public delegate void ImageAlreadyUptoDateEventHandler(string imageName);
-        [Signal]
-        public delegate void ImagePullProgressEventHandler(string imageName, double progress);
+
+        public Task<DockerInspect> InspectImage(string imageName)
+        {
+            return InspectImage(imageName, CancellationToken.None);
+        }
+        
+        public Task<DockerInspect> InspectImage(string imageName, CancellationToken cancellationToken)
+        {
+            return InspectAsync(imageName, cancellationToken);
+        }
+
+        public event IDockerEventPublisher.ImageUpdatedEventHandler? OnImageUpdated;
+        public event IDockerEventPublisher.ImageAlreadyUptoDateEventHandler? OnImageAlreadyUptoDate;
+        public event IDockerEventPublisher.ImagePullProgressEventHandler? OnImagePullProgress;
     }
 }
