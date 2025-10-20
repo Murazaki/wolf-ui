@@ -31,6 +31,8 @@ namespace Godot.DependencyInjection
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
+            if(Engine.IsEditorHint()) return;
+            
             _wolfApiEventsTask.DockerPulledImageEvent += (image, success) => 
                 _logger.LogInformation("Docker pulled image: {image} - {success}", image, success);
             

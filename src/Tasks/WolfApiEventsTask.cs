@@ -23,7 +23,6 @@ public partial class WolfApiEventsTask : GodotObject, IHostedService, IApiEventP
 {
     private readonly Microsoft.Extensions.Logging.ILogger<WolfApiEventsTask> _logger;
     private readonly HttpClient _client;
-    // private readonly NSwagDocker.NSwagDocker _docker;
     private readonly NSwagWolfApi.NSwagWolfApi _wolfApi;
     public readonly ConcurrentDictionary<string, bool> ExistingDockerImages = new();
 
@@ -33,12 +32,10 @@ public partial class WolfApiEventsTask : GodotObject, IHostedService, IApiEventP
     
     public WolfApiEventsTask(Microsoft.Extensions.Logging.ILogger<WolfApiEventsTask> logger, 
         IHostApplicationLifetime applicationLifetime, 
-        // NSwagDocker.NSwagDocker docker, 
         NSwagWolfApi.NSwagWolfApi wolfApi, 
         HttpClient client)
     {
         _logger = logger;
-        // _docker = docker;
         _wolfApi = wolfApi;
         _client = client;
 
@@ -170,11 +167,13 @@ public partial class WolfApiEventsTask : GodotObject, IHostedService, IApiEventP
         }
 
         value(data);
-        if(@event == "wolf::core::events::CreateLobbyEvent")
-        {
-            var a = JsonSerializer.Deserialize<NSwagWolfApi.LobbyCreatedEvent>(data, JsonOptions);
-            GD.Print(a);
-        }
+        
+        
+        if (@event != "wolf::core::events::CreateLobbyEvent") return;
+        var a = JsonSerializer.Deserialize<NSwagWolfApi.LobbyCreatedEvent>(data, JsonOptions);
+        GD.Print(a);
+        
+        
         return;
 
         

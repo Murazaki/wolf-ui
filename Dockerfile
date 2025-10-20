@@ -31,7 +31,7 @@ _INSTALL_DOTNET
 
 WORKDIR /project
 COPY ./src ./src
-COPY ./Skerga.Godot.DependencyInjection ./Skerga.Godot.DependencyInjection
+
 COPY ./OpenApiGenerator ./OpenApiGenerator
 WORKDIR /project/src
 RUN <<_BUILD_PROJECT

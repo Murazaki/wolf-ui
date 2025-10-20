@@ -6,9 +6,6 @@
         <Nullable>enable</Nullable>
     </PropertyGroup>
     <ItemGroup>
-        <ProjectReference Include="..\Skerga.Godot.DependencyInjection\Skerga.Godot.DependencyInjection.csproj"
-                          OutputItemType="Analyzer" ReferenceOutputAssembly="false"/>
-
         <ProjectReference Include="..\OpenApiGenerator\OpenApiGenerator.csproj"
                           PrivateAssets="all"
                           OutputItemType="Analyzer" ReferenceOutputAssembly="false"
@@ -17,18 +14,16 @@
         <PackageReference Include="GodotSharp.SourceGenerators" Version="2.6.0"
                           OutputItemType="Analyzer" ReferenceOutputAssembly="false"/>
 
+        <PackageReference Include="Skerga.Godot.DependencyInjection" Version="0.0.3" 
+                          OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+        
         <PackageReference Include="System.Runtime.Caching" Version="8.0.1"/>
         <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.1"/>
         <PackageReference Include="Microsoft.Extensions.Logging" Version="8.0.1"/>
         <PackageReference Include="Microsoft.Extensions.Http" Version="8.0.1"/>
         <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="8.0.1"/>
         <PackageReference Include="System.Diagnostics.DiagnosticSource" Version="8.0.1" />
-
-        <PackageReference Include="Refit" Version="8.0.0" />
-        <PackageReference Include="Refit.HttpClientFactory" Version="8.0.0" />
-
-
-
+        
         <PackageReference Include="NSwag.Core" Version="14.6.1" />
         <PackageReference Include="NSwag.CodeGeneration.CSharp" Version="14.6.1" />
         <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
