@@ -18,14 +18,16 @@ public partial class VisibilitySwitcher : Control
 		{
 			if(child is Control control)
 			{
-				control.VisibilityChanged += () => {
-					if(control.Visible)
+				control.VisibilityChanged += () =>
+				{
+					switch (control.Visible)
 					{
-						HideAllChildenExcept(control);
-					}
-					if(!control.Visible)
-					{
-						KeepOneChildVisible(control);
+						case true:
+							HideAllChildenExcept(control);
+							break;
+						case false:
+							KeepOneChildVisible(control);
+							break;
 					}
 				};
 			}

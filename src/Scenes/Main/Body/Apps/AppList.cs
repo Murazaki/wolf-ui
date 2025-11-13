@@ -7,7 +7,6 @@ using Godot.DependencyInjection;
 using NSwagWolfApi;
 using WolfUI.Interfaces;
 using WolfUI.Misc;
-using WolfUI.Tasks;
 
 namespace WolfUI;
 

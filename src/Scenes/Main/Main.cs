@@ -1,11 +1,9 @@
 using Godot;
 using Godot.DependencyInjection;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Options;
-using NSwagWolfApi;
-using Resources.WolfAPI;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using WolfUI.Interfaces;
-using WolfUI.Tasks;
 
 namespace WolfUI;
 
@@ -14,9 +12,10 @@ public partial class Main : Control
 {
 	private readonly IConfiguration _config;
 	private readonly NSwagWolfApi.NSwagWolfApi _api;
-	private readonly WolfApiEventsTask _apiEvents;
 	private readonly IDockerEventPublisher _dockerEvents;
 	private readonly IDockerApiClient _dockerApiClient;
+	private readonly ILogger<Main> _logger;
+	private readonly IHostApplicationLifetime _appLifetime;
 	
 	public static Profile ActiveProfile { get; set; } = null!;
 	
@@ -25,22 +24,24 @@ public partial class Main : Control
 	public static Main Singleton { get; private set; }
 
 	[Inject]
-	public Main(IConfiguration config, NSwagWolfApi.NSwagWolfApi api, WolfApiEventsTask apiEvents, IDockerEventPublisher dockerEvents, IDockerApiClient dockerApiClient)
+	public Main(IConfiguration config, NSwagWolfApi.NSwagWolfApi api, IDockerEventPublisher dockerEvents, IDockerApiClient dockerApiClient, Microsoft.Extensions.Logging.ILogger<Main> logger, IHostApplicationLifetime appLifetime)
 	{
 		_config = config;
 		_api = api;
-		_apiEvents = apiEvents;
 		_dockerEvents = dockerEvents;
 		_dockerApiClient = dockerApiClient;
+		_logger = logger;
+		_appLifetime = appLifetime;
 		Singleton ??= this;
 	}
-
-	// Called when the node enters the scene tree for the first time.
+	
 	public override void _Ready()
 	{
 		if (Engine.IsEditorHint())
 			return;
 
+		_appLifetime.ApplicationStopping.Register(QueueFree);
+		
 		SoundEffects? soundEffects = null;
 		foreach (var child in GetChildren())
 		{
@@ -67,38 +68,10 @@ public partial class Main : Control
 
 		SelfUpdateAsync();
 
-		Logger.LogInformation("This session's id: {0}", _config.GetSection("SESSION_ID").Value ?? "UNKNOWN");
+		_logger.LogInformation("This session's id: {id}", _config.GetSection("SESSION_ID").Value ?? "UNKNOWN");
 	} 
 	
-	/*
-	public void LoadTheme(string themeName)
-	{
-		var user = System.Environment.GetEnvironmentVariable("USER") ?? "retro";
-		user = user == "root" ? "retro" : user;
-		var filepath = $"/home/{user}/.wolf-ui/{themeName}.tres";
-
-		if (File.Exists(filepath))
-		{
-			return;
-		}
-
-		GetTree().Root.Theme = ResourceLoader.Load<Theme>(filepath);
-	}
-
-	public void SaveTheme(string themeName)
-	{
-		var user = System.Environment.GetEnvironmentVariable("USER") ?? "retro";
-		user = user == "root" ? "retro" : user;
-		var filepath = $"/home/{user}/.wolf-ui/{themeName}.tres";
-
-		if (File.Exists(filepath))
-		{
-			return;
-		}
-
-		//GetTree().Root.Theme;
-	}
-	*/
+	
 	
 	public override void _Input(InputEvent @event)
 	{

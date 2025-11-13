@@ -30,6 +30,7 @@ public partial class WolfApiEventsTask : GodotObject, IHostedService, IApiEventP
         TypeInfoResolver = new OptInJsonTypeInfoResolver()
     };
     
+    [Inject]
     public WolfApiEventsTask(Microsoft.Extensions.Logging.ILogger<WolfApiEventsTask> logger, 
         IHostApplicationLifetime applicationLifetime, 
         NSwagWolfApi.NSwagWolfApi wolfApi, 
@@ -50,6 +51,8 @@ public partial class WolfApiEventsTask : GodotObject, IHostedService, IApiEventP
     
     public Task StartAsync(CancellationToken cancellationToken)
     {
+        if(Engine.IsEditorHint()) return Task.CompletedTask;
+        
         Task.Run(async () =>
         {
             DockerPulledImageEvent += (image, success) =>
@@ -63,7 +66,7 @@ public partial class WolfApiEventsTask : GodotObject, IHostedService, IApiEventP
             var icons = TryAsync(_wolfApi.ProfilesAsync(cancellationToken)).Result?.Profiles
                 .SelectMany(p => p.Apps)
                 .Distinct()
-                .Select( a => (a.Id, new Lazy<Texture2D?>(() => WolfApi.GetIcon(a).Result)))
+                .Select( a => (a.Id, WolfApi.GetIcon(a).Result))
                 .ToList() ?? [];
             
             

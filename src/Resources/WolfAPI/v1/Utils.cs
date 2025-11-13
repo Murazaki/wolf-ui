@@ -5,6 +5,7 @@ using System.Net.Http;
 using System.Net.Sockets;
 using System.Threading.Tasks;
 using Godot;
+using Microsoft.Extensions.Logging;
 using WolfUI;
 
 namespace Resources.WolfAPI;
@@ -46,7 +47,7 @@ public partial class WolfApi
     {
         if (retry >= 5)
         {
-            Logger.LogError("Failed Loading {0} 5 times, skipping", iconPath);
+            _logger.LogError("Failed Loading {icon} 5 times, skipping", iconPath);
             return null;
         }
         var user = System.Environment.GetEnvironmentVariable("USER") ?? "retro";
@@ -66,7 +67,7 @@ public partial class WolfApi
             File.Delete(filepath);
         }
 
-        Logger.LogInformation("Requesting icon: {0}", iconPath);
+        _logger.LogInformation("Requesting icon: {icon}", iconPath);
 
         HttpResponseMessage message;
         try
@@ -76,9 +77,9 @@ public partial class WolfApi
         catch (HttpRequestException e)
         {
             if(e.InnerException is not null)
-                Logger.LogWarning("Icon {0} could not be accessed: {1} - {2} Retrying", iconPath, e.Message, e.InnerException.Message);
+                _logger.LogWarning("Icon {icon} could not be accessed: {msg} - {exception} Retrying", iconPath, e.Message, e.InnerException.Message);
             else
-                Logger.LogWarning("Icon {0} could not be accessed: {1} Retrying", iconPath, e.Message);
+                _logger.LogWarning("Icon {icon} could not be accessed: {msg} Retrying", iconPath, e.Message);
             return await GetIcon(iconPath, hCacheDuration, retry + 1);
         }
 
@@ -93,7 +94,7 @@ public partial class WolfApi
                     return null;
                 }
 
-                Logger.LogError("Icon {0} could not be decoded properly, Retrying", iconPath);
+                _logger.LogError("Icon {icon} could not be decoded properly, Retrying", iconPath);
                 return await GetIcon(iconPath, hCacheDuration, retry + 1);
             }
 
@@ -106,7 +107,7 @@ public partial class WolfApi
             var texture = ImageTexture.CreateFromImage(image);
             return texture;
         }
-        Logger.LogError("Could not access image: {0}: {1}", iconPath, message.StatusCode);
+        _logger.LogError("Could not access image: {icon}: {code}", iconPath, message.StatusCode);
         return null;
     }
 }

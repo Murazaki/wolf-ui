@@ -1,24 +1,25 @@
 using Godot;
 using Godot.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using NSwagWolfApi;
 using Resources.WolfAPI;
 using WolfUI.Interfaces;
-using WolfUI.Tasks;
 
 namespace WolfUI;
 
 [Tool, SceneTree]
 public partial class LobbiesContainer : VBoxContainer
 {
-    private static readonly ILogger<LobbiesContainer> Logger = Main.GetLogger<LobbiesContainer>();
+    private readonly ILogger<LobbiesContainer> _logger;
     private readonly IApiEventPublisher _apiEvents;
     private readonly NSwagWolfApi.NSwagWolfApi _api;
 
     [Inject]
-    public LobbiesContainer(IApiEventPublisher apiEvents, NSwagWolfApi.NSwagWolfApi api)
+    public LobbiesContainer(IApiEventPublisher apiEvents, NSwagWolfApi.NSwagWolfApi api, ILogger<LobbiesContainer> logger)
     {
         _apiEvents = apiEvents;
         _api = api;
+        _logger = logger;
     }
 
     public override async void _Ready()
@@ -81,7 +82,7 @@ public partial class LobbiesContainer : VBoxContainer
     
     private void OnLobbyStopped(string lobbyId)
     {
-        Logger.LogInformation("Lobby stopped {0}", lobbyId);
+        _logger.LogInformation("Lobby stopped {id}", lobbyId);
 
         foreach (var node in Lobbies.GetChildren())
         {

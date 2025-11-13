@@ -1,5 +1,7 @@
 using Godot;
 using Godot.Collections;
+using Godot.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace WolfUI;
 
@@ -9,7 +11,7 @@ public partial class ControllerMap : Resource
 {
     public enum ControllerType { Switch, XBox, PS, None };
     public enum ControllerButton { Accept, Cancel, Up, Down, Left, Right, Back };
-    private static readonly ILogger<ControllerMap> Logger = WolfUI.Main.GetLogger<ControllerMap>();
+    private readonly ILogger<ControllerMap> _logger;
     [Export]
     Dictionary<ControllerType, Texture2D> Accept;
     [Export]
@@ -38,8 +40,10 @@ public partial class ControllerMap : Resource
     public ControllerType Controller => UsedController;
 
 #nullable disable // Export Variables are Godots Job
-    public ControllerMap()
+    [Inject]
+    public ControllerMap(ILogger<ControllerMap> logger)
     {
+        _logger = logger;
         Input.JoyConnectionChanged += JoyConnectionChanged;
     }
 #nullable enable
@@ -79,7 +83,7 @@ public partial class ControllerMap : Resource
 
         if (UsedController == oldController) return;
         
-        Logger.LogInformation("{0} detected", Input.GetJoyName((int)deviceId));
+        _logger.LogInformation("{joypad} detected", Input.GetJoyName((int)deviceId));
         EmitSignalIconSetChanged();
     }
 

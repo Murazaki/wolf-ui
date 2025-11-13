@@ -19,35 +19,19 @@ namespace Godot.DependencyInjection
         private readonly ILogger<Test> _logger;
         private readonly NSwagWolfApi.NSwagWolfApi _api;
         private readonly NSwagDocker.NSwagDocker _docker;
-        private readonly WolfApiEventsTask _wolfApiEventsTask;
 
-        public Test(ILogger<Test> logger, NSwagWolfApi.NSwagWolfApi api, NSwagDocker.NSwagDocker docker, WolfApiEventsTask wolfApiEventsTask)
+        public Test(ILogger<Test> logger, 
+            NSwagWolfApi.NSwagWolfApi api, 
+            NSwagDocker.NSwagDocker docker)
         {
             _logger = logger;
             _api = api;
             _docker = docker;
-            _wolfApiEventsTask = wolfApiEventsTask;
         }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            if(Engine.IsEditorHint()) return;
-            
-            _wolfApiEventsTask.DockerPulledImageEvent += (image, success) => 
-                _logger.LogInformation("Docker pulled image: {image} - {success}", image, success);
-            
-            _wolfApiEventsTask.DockerPullingImageEvent += image => 
-                _logger.LogInformation("Docker pulling image: {image}", image);
-            
-            try
-            {
-                var a = await _docker.InspectAsync("ghcr.io/games-on-whales/wolf-ui:main", stoppingToken);
-                GD.Print(a);
-            }
-            catch (Exception e)
-            {
-                GD.Print(e.Message);
-            }
+
         }
     }
     

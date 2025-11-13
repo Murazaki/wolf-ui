@@ -5,7 +5,6 @@ using Godot.DependencyInjection;
 using NSwagWolfApi;
 using Resources.WolfAPI;
 using WolfUI.Interfaces;
-using WolfUI.Tasks;
 
 namespace WolfUI;
 
@@ -14,7 +13,6 @@ public partial class App : MarginContainer
 {
 	private readonly NSwagWolfApi.NSwagWolfApi _api;
 	private readonly NSwagDocker.NSwagDocker _docker;
-	private readonly WolfApiEventsTask _events;
 	private readonly IDockerEventPublisher _dockerEvents;
 	private readonly IDockerApiClient _dockerApi;
 	
@@ -40,7 +38,6 @@ public partial class App : MarginContainer
 		}
 	}
 	private NSwagWolfApi.Lobby? _runningLobby;
-	//private Resources.WolfAPI.AppEntry _appEntry;
 	private bool _isImageOnDisc = true;
 
 	[OnInstantiate(ctor: "none")]
@@ -50,10 +47,13 @@ public partial class App : MarginContainer
 	}
 
 	[Inject]
-	public App(NSwagWolfApi.NSwagWolfApi api, WolfApiEventsTask events, NSwagDocker.NSwagDocker docker, IDockerEventPublisher dockerEvents, IDockerApiClient dockerApi)
+	public App(NSwagWolfApi.NSwagWolfApi api, 
+		NSwagDocker.NSwagDocker docker, 
+		IDockerEventPublisher dockerEvents, 
+		IDockerApiClient dockerApi)
 	{
 		_api = api;
-		_events = events;
+		//_events = events;
 		_docker = docker;
 		_dockerEvents = dockerEvents;
 		_dockerApi = dockerApi;
@@ -90,16 +90,8 @@ public partial class App : MarginContainer
 		{
 			return;
 		}
-
-		try
-		{
-			_isImageOnDisc = await _docker.IsImageOnDisk(AppDto.Runner.Image);
-		}
-		catch (System.Net.Http.HttpRequestException e)
-		{
-			_Ready();
-			return;
-		}
+		
+		_isImageOnDisc = _docker.IsDockerImageOnDisk(AppDto.Runner.Image);
 		
 		
 		if (AppName is null)
@@ -140,9 +132,12 @@ public partial class App : MarginContainer
 			State = _isImageOnDisc ? AppState.OK : AppState.NOT_ON_DISK;
 		};
 
-		_dockerEvents.OnImageUpdated += OnImageUpdated;
-		_dockerEvents.OnImageAlreadyUptoDate += OnImageUpdated;
-		_dockerEvents.OnImagePullProgress += OnImagePullProgress;
+		_dockerEvents.OnImageUpdated += name => 
+			CallDeferred(MethodName.OnImageUpdated, name);
+		_dockerEvents.OnImageAlreadyUptoDate += name => 
+			CallDeferred(MethodName.OnImageUpdated, name);
+		_dockerEvents.OnImagePullProgress += (image, progress) => 
+			CallDeferred(MethodName.OnImagePullProgress, image, progress);
 
 		AppEnteredView += async () =>
 		{
@@ -236,8 +231,7 @@ public partial class App : MarginContainer
 		}
 		
 		if (AppDto.Runner.Image is null || State == AppState.DOWNLOADING) return;
-		if(_events.ExistingDockerImages.TryGetValue(AppDto.Runner.Image, out var image))
-			_isImageOnDisc = image;
+		_isImageOnDisc = _dockerApi.IsDockerImageOnDisk(AppDto.Runner.Image);
 		State = _isImageOnDisc ? _runningLobby is null ? AppState.OK : AppState.PLAYING : AppState.NOT_ON_DISK;
 	}
 

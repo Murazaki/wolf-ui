@@ -1,5 +1,8 @@
 using System;
+using System.Collections.Concurrent;
+using System.Linq;
 using System.Threading;
+using Resources.WolfAPI;
 using WolfUI.Interfaces;
 using WolfUI.Tasks;
 
@@ -18,27 +21,34 @@ namespace NSwagDocker
     {
         private readonly ILogger<NSwagDocker> _logger;
         private readonly HttpClient _client;
-        private readonly WolfApiEventsTask _eventsTask;
         private readonly NSwagWolfApi.NSwagWolfApi _wolfApi;
+        private readonly ConcurrentDictionary<string, bool> _existingDockerImages = new();
         
-        public NSwagDocker(ILogger<NSwagDocker> logger, HttpClient client, WolfApiEventsTask eventsTask, NSwagWolfApi.NSwagWolfApi wolfApi) : this(client)
+        public NSwagDocker(ILogger<NSwagDocker> logger, 
+            HttpClient client, 
+            NSwagWolfApi.NSwagWolfApi wolfApi) : this(client)
         {
             _logger = logger;
             _client = client;
-            _eventsTask = eventsTask;
             _wolfApi = wolfApi;
-            
-            // TryAsync(_wolfApi.ProfilesAsync()).Result?.Profiles
-            //     .SelectMany(p => p.Apps)
-            //     .Select(a => (a.Runner.Image, a.Runner.Image))
-            //     .Distinct()
-            //     .Select(async i => KeyValuePair.Create(
-            //         i.Item1, 
-            //         await TryAsync(InspectAsync(i.Item2)) is not null)
-            //     )
-            //     .Select(t => t.Result)
-            //     .ToList()
-            //     .ForEach(kv => _eventsTask.ExistingDockerImages[kv.Key] = kv.Value);
+
+            CheckDockerImages();
+        }
+
+        private void CheckDockerImages()
+        {
+            Task.Run(async () =>
+            {
+                var profiles = (await _wolfApi.ProfilesAsync())?.Profiles ?? [];
+                profiles.SelectMany(p => p.Apps)
+                    .Select(a => a.Runner.Image)
+                    .Distinct()
+                    .Select(i => (
+                        i, 
+                        TryAsync(InspectAsync(i)).Result is not null)
+                    )
+                    .ForEach(kv => _existingDockerImages[kv.i] = kv.Item2);
+            });
         }
 
         private sealed record PullImageResponse
@@ -100,7 +110,7 @@ namespace NSwagDocker
 
                     if (parsed.Success is not null && parsed.Success == true)
                     {
-                        _eventsTask.ExistingDockerImages[imageName] = true;
+                        _existingDockerImages[imageName] = true;
 
                         if (hasDownloaded)
                             EmitSignalDeferredImageUpdated(imageName);
@@ -168,6 +178,23 @@ namespace NSwagDocker
             return InspectAsync(imageName, cancellationToken);
         }
 
+        public bool IsDockerImageOnDisk(string imageName)
+        {
+            return _existingDockerImages.GetValueOrDefault(imageName, false);
+        }
+
+        private static async Task<T?> TryAsync<T>(Task<T> task)
+        {
+            try
+            {
+                return await task;
+            }
+            catch (Exception e)
+            {
+                return default;
+            }
+        }
+        
         public event IDockerEventPublisher.ImageUpdatedEventHandler? OnImageUpdated;
         public event IDockerEventPublisher.ImageAlreadyUptoDateEventHandler? OnImageAlreadyUptoDate;
         public event IDockerEventPublisher.ImagePullProgressEventHandler? OnImagePullProgress;

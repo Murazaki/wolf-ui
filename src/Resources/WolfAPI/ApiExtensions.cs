@@ -113,20 +113,6 @@ namespace Resources.WolfAPI
                 Client_settings = null
             };
         }
-
-        public static async Task<bool> IsImageOnDisk(this NSwagDocker.NSwagDocker api, string imageName)
-        {
-            try
-            {
-                var inspect = await api.InspectAsync(imageName);
-                return inspect is not null;
-            }
-            catch (NSwagDocker.ApiException e)
-            {
-                Console.WriteLine(e);
-                return false;
-            }
-        }
     }
 }
 

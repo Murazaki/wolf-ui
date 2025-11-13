@@ -1,5 +1,6 @@
 using Godot;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
@@ -53,24 +54,21 @@ public partial class PinInput : CenterContainer
             return [];
 
         List<int> ints = [];
-        var PinText = PinLineEdit.Text;
-        foreach (char c in PinText)
-        {
-            ints.Add(int.Parse(c.ToString()));
-        }
+        var pinText = PinLineEdit.Text;
+        ints.AddRange(pinText.Select(c => int.Parse(c.ToString())));
 
         return ints;
     }
 
     public override void _Ready()
     {
-        if (PinLineEdit == null)
+        if (PinLineEdit is null)
             return;
 
         PinLineEdit.GrabFocus();
 
         NumberButtons = [];
-        for (int i = 0; i < 10; i++)
+        for (var i = 0; i < 10; i++)
         {
             NumberButtons.Add(GetNode<Button>($"%Button{i}"));
         }

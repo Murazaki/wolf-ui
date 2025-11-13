@@ -5,7 +5,6 @@ using System.Linq;
 using Godot.DependencyInjection;
 using NSwagWolfApi;
 using WolfUI.Interfaces;
-using WolfUI.Tasks;
 
 //TODO Add User counter, Add check if Lobby is empty on Stop and if not ask again.
 namespace WolfUI;

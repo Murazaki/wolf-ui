@@ -1,13 +1,6 @@
 using Godot;
-using System;
-using WolfUI;
-using System.Net.Http;
-using System.Text.Json;
-using System.Net.Sockets;
-using System.Threading.Tasks;
 using Godot.DependencyInjection;
 using Microsoft.Extensions.Configuration;
-using WolfUI.Tasks;
 
 namespace Resources.WolfAPI;
 
@@ -15,12 +8,18 @@ namespace Resources.WolfAPI;
 public partial class WolfApi : Resource
 {
     private static IConfiguration _config = null!;
-    
-    private static readonly ILogger<WolfApi> Logger = Main.GetLogger<WolfApi>();
+    private static Microsoft.Extensions.Logging.ILogger<WolfApi> _logger = null!;
+    private static WolfApi _instance;
     
     [Inject]
-    public WolfApi(IConfiguration config)
+    private WolfApi(IConfiguration config, Microsoft.Extensions.Logging.ILogger<WolfApi> logger)
     {
         _config = config;
+        _logger = logger;
+    }
+
+    static WolfApi()
+    {
+        _instance = new WolfApi();
     }
 }

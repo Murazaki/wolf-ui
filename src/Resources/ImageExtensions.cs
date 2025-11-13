@@ -1,14 +1,11 @@
 using System.Net.Http;
 using System.Threading.Tasks;
 using Godot;
-using WolfUI;
 
 namespace Resources.WolfAPI;
 
 public static class ImageExtensions
 {
-    private static readonly ILogger<Image> Logger = WolfUI.Main.GetLogger<Image>();
-
     public static async Task<Error> LoadImageFromHttpResponseMessage(this Image image, HttpResponseMessage message)
     {
         if (message.Content.Headers.ContentType?.MediaType is null)
@@ -28,7 +25,7 @@ public static class ImageExtensions
 
         if (error == Error.FileUnrecognized)
         {
-            Logger.LogError("No Load function for \"{0}\" currently implemented", mediaType);
+            GD.Print($"No Load function for \"{mediaType}\" currently implemented");
         }
 
         return error;
